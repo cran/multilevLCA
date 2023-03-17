@@ -82,7 +82,7 @@ verbose = TRUE)
      Whether to (re)order classes in decreasing order according to probability of scoring yes on all items. Default \code{TRUE}
 }
   \item{fixedpars}{
-     Estimator of multilevel model; one-step estimator (0), two-step estimator (1) or three-step estimator (2). Default 1
+     Estimator of multilevel model; one-step estimator (0), two-step estimator (1) or two-stage estimator (2). Default 1
 }
   \item{NRtol}{
      Newton-Raphson tolerance for structural model estimation. Default 1e-6

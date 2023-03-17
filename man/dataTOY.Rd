@@ -28,6 +28,6 @@ Artificial multilevel data set.
   }
 }
 \references{
-Di Mari, Bakk, Z., R., Oser, J., & Kuha, J. (2023). A two-step estimator for multilevel latent class analysis with covariates. Under review.
+Di Mari, Bakk, Z., R., Oser, J., & Kuha, J. (2023). A two-step estimator for multilevel latent class analysis with covariates. Under review. Available from \url{https://arxiv.org/abs/2303.06091}.
 }
 \keyword{datasets}

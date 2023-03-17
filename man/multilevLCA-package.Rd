@@ -13,7 +13,7 @@ To estimate latent class models, see \code{\link{multiLCA}}.
 To plot latent class models, see \code{\link{plot.multiLCA}}
 }
 \author{
-\packageAuthor{multilevLCA}
+Roberto Di Mari and Johan Lyrvall.
 
 Maintainer: \packageMaintainer{multilevLCA}
 }
@@ -22,7 +22,7 @@ Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent classe
 
 Bakk, Z., Di Mari, R., Oser, J., & Kuha, J. (2022). Two-stage multilevel latent class analysis with covariates in the presence of direct effects. \emph{Structural Equation Modeling: A Multidisciplinary Journal, 29(2), 267-277}.
 
-Di Mari, Bakk, Z., R., Oser, J., & Kuha, J. (2023). A two-step estimator for multilevel latent class analysis with covariates. Under review.
+Di Mari, Bakk, Z., R., Oser, J., & Kuha, J. (2023). A two-step estimator for multilevel latent class analysis with covariates. Under review. Available from \url{https://arxiv.org/abs/2303.06091}.
 
 Lukociene, O., Varriale, R., & Vermunt, J. K. (2010). 6. The simultaneous decision (s) about the number of lower-and higher-level classes in multilevel latent class analysis. Sociological Methodology, 40(1), 247-283.
 }
