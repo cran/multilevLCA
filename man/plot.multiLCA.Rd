@@ -45,10 +45,7 @@ out
 # Plot conditional response probabilities with default settings
 plot(out)
 
-# Plot with vertical item labels
-plot(out, horiz = FALSE)
-
-# Plot with custom class labels
+# Plot with vertical item labels and custom class labels
 plot(out, horiz = FALSE, clab = c("Maximal", "Engaged", "Subject"))
 }
 }
