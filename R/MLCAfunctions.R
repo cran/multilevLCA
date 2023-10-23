@@ -1,12 +1,25 @@
+.onAttach <- function(libname, pkgname) {
+  packageStartupMessage("multilevLCA: Estimates and plots single- and multilevel latent class models.")
+}
+
 multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                     extout = FALSE, dataout = FALSE, kmea = TRUE, sequential = TRUE,
                     numFreeCores = 2, maxIter = 1e3, tol = 1e-8,
-                    reord = 1, fixedpars = 1,
-                    NRtol= 1e-6, NRmaxit = 100, verbose = TRUE){
-  
+                    reord = TRUE, fixedpars = 1,
+                    NRmaxit = 100, NRtol = 1e-6, verbose = TRUE){
+  #
+  if(verbose){
+    pb=txtProgressBar(char="Cleaning data...",width=1)
+    setTxtProgressBar(pb,1)
+    close(pb)
+  }
+  #
+  check_inputs1(data,Y,iT,id_high,iM,Z,Zh)
+  nrow_data = nrow(data)
   data      = data[complete.cases(data[,Y]),c(Y,id_high,Z,Zh)]
-  approach  = check_inputs(data,Y,iT,id_high,iM,Z,Zh)
+  approach  = check_inputs2(data,Y,iT,id_high,iM,Z,Zh)
   
+  reord = as.numeric(reord)
   fixed = fixedpars
   if((fixed==2)&is.null(iM)) fixed=fixedpars=1
   
@@ -20,8 +33,13 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
   }
   mY        = as.matrix(data[,Y])
   ivItemcat = apply(mY,2,function(x){length(unique(x))})
-  if(any(ivItemcat>2)){
+  itemchar  = any(apply(data[,Y],2,function(x){!is.numeric(x)}))
+  if(any(ivItemcat>2)&!itemchar){
     mY  = update_YmY(mY,Y,ivItemcat)
+    Y   = mY$Y
+    mY  = mY$mY
+  } else if(itemchar){
+    mY  = update_YmY_nonnum(mY,Y,ivItemcat)
     Y   = mY$Y
     mY  = mY$mY
     }
@@ -34,9 +52,20 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     mZh = clean_cov(data,Zh)
     Zh  = mZh$covnam
     mZh = mZh$cov
-    }
+  }
   
   if(approach=="direct"){
+    #
+    if(verbose){
+      if(fixed==0){
+        pb=txtProgressBar(char="Fitting LC model...",width=1)
+      } else{
+        pb=txtProgressBar(char="Fitting measurement model...",width=1)
+      }
+      setTxtProgressBar(pb,1)
+      close(pb)
+    }
+    #
     if(any(ivItemcat>2)){
       #
       if(is.null(id_high)&is.null(Z)&is.null(Zh)){
@@ -44,7 +73,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         out = clean_output1(out,Y,iT,length(Y),extout,dataout)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
         out = LCA_fast_init_wcov_poly(mY,mZ,iT,ivItemcat,kmea,maxIter,tol,fixed,reord,
-                                      NRtol,NRmaxit)
+                                      NRtol,NRmaxit,verbose)
         out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
         init  = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
@@ -66,8 +95,16 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         vNj     = table(id_high)
         mZ      = mZ[complete.cases(mZ),]
         #
+        if(verbose){
+          if(fixed==1|fixed==2){
+            pb=txtProgressBar(char="Fitting structural model...",width=1)
+            setTxtProgressBar(pb,1)
+            close(pb)
+          }
+        }
+        #
         out = MLTLCA_cov_poly(mY,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
-                              ivItemcat,maxIter,tol,fixedpars,NRtol,NRmaxit)
+                              ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
         out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout)
       } else if(!is.null(id_high)&!is.null(Z)&!is.null(Zh)){
         init1   = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
@@ -89,8 +126,16 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         mZh       = mZh[nomissing,]
         mZh       = mZh[!duplicated(id_high),]
         #
+        if(verbose){
+          if(fixed==1|fixed==2){
+            pb=txtProgressBar(char="Fitting structural model...",width=1)
+            setTxtProgressBar(pb,1)
+            close(pb)
+          }
+        }
+        #
         out = MLTLCA_covlowhigh_poly(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
-                                     mStep1Var,ivItemcat,maxIter,tol,fixedpars,NRtol,NRmaxit)
+                                     mStep1Var,ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
         out = clean_output5(out,Y,iT,iM,c("Intercept",Z),c("Intercept",Zh),mY,mZ,mZh,id_high,length(Y),P,P_high,id_high_levs,id_high_name,extout,dataout)
       }
     } else{
@@ -99,7 +144,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         out = clean_output1(out,Y,iT,length(Y),extout,dataout)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
         out = LCA_fast_init_wcov(mY,mZ,iT,kmea,maxIter,tol,fixed,reord,
-                                 NRtol,NRmaxit)
+                                 NRtol,NRmaxit,verbose)
         out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
         init  = meas_Init(mY,id_high,vNj,iM,iT,kmea)
@@ -110,7 +155,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         init1 = meas_Init(mY,id_high,vNj,iM,iT,kmea)
         init2 = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
                        maxIter,tol,reord)
-        P     = ncol(mZ)
+        P             = ncol(mZ)
         vOmega_start  = init2$vOmega
         cGamma_start  = array(c(rbind(init2$mGamma,matrix(0,(iT-1)*(P-1),iM))),c(iT-1,P,iM))
         mPhi_start    = init2$mPhi
@@ -121,6 +166,14 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         vNj     = table(id_high)
         mZ      = mZ[complete.cases(mZ),]
         #
+        if(verbose){
+          if(fixed==1|fixed==2){
+            pb=txtProgressBar(char="Fitting structural model...",width=1)
+            setTxtProgressBar(pb,1)
+            close(pb)
+          }
+        }
+        #
         out = MLTLCA_cov(mY,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
                          maxIter,tol,fixedpars,NRtol,NRmaxit)
         out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout)
@@ -128,8 +181,8 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         init1   = meas_Init(mY,id_high,vNj,iM,iT,kmea)
         init2   = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
                          maxIter,tol,reord)
-        P       = ncol(mZ)
-        P_high  = ncol(mZh)
+        P                 = ncol(mZ)
+        P_high            = ncol(mZh)
         cGamma_start      = array(c(rbind(init2$mGamma,matrix(0,(iT-1)*(P-1),iM))),c(iT-1,P,iM))
         mPhi_start        = init2$mPhi
         mStep1Var         = init2$Varmat
@@ -144,6 +197,14 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         mZh       = mZh[nomissing,]
         mZh       = mZh[!duplicated(id_high),]
         #
+        if(verbose){
+          if(fixed==1|fixed==2){
+            pb=txtProgressBar(char="Fitting structural model...",width=1)
+            setTxtProgressBar(pb,1)
+            close(pb)
+          }
+        }
+        #
         out = MLTLCA_covlowhigh(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
                                 mStep1Var,maxIter,tol,fixedpars,NRtol,NRmaxit)
         out = clean_output5(out,Y,iT,iM,c("Intercept",Z),c("Intercept",Zh),mY,mZ,mZh,id_high,length(Y),P,P_high,id_high_levs,id_high_name,extout,dataout)
@@ -151,23 +212,23 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     }
   } else if(approach=="model selection on low"){
     if(any(ivItemcat>2)){
-      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach)
+      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach,verbose)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
-      optimal = matrix(paste0("iT=",out$iT_best),dimnames=list("",""))
+      optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
       out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
-      out = sel_other(mY,id_high,iT,iM,approach)
+      out = sel_other(mY,id_high,iT,iM,approach,verbose)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
-      optimal = matrix(paste0("iT=",out$iT_best),dimnames=list("",""))
+      optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
       out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout)
       out$model_selection = list_sel
@@ -175,23 +236,23 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     }
   } else if(approach=="model selection on low with high"){
     if(any(ivItemcat>2)){
-      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach)
+      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach,verbose)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
-      optimal = matrix(paste0("iT=",out$iT_best),dimnames=list("",""))
+      optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
       out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
-      out = sel_other(mY,id_high,iT,iM,approach)
+      out = sel_other(mY,id_high,iT,iM,approach,verbose)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
-      optimal = matrix(paste0("iT=",out$iT_best),dimnames=list("",""))
+      optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
       out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
       out$model_selection = list_sel
@@ -199,23 +260,23 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     }
   } else if(approach=="model selection on high"){
     if(any(ivItemcat>2)){
-      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach)
+      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach,verbose)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iM),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
-      optimal = matrix(paste0("iM=",out$iM_best),dimnames=list("",""))
+      optimal = matrix(out$iM_best,dimnames=list("iM=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
       out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
-      out = sel_other(mY,id_high,iT,iM,approach)
+      out = sel_other(mY,id_high,iT,iM,approach,verbose)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iM),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
-      optimal = matrix(paste0("iM=",out$iM_best),dimnames=list("",""))
+      optimal = matrix(out$iM_best,dimnames=list("iM=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
       out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
       out$model_selection = list_sel
@@ -223,8 +284,8 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     }
   } else if(approach=="model selection on low and high"){
     if(sequential){
-      if(any(ivItemcat)>2){
-        out = lukosel_fun_poly(mY,id_high,iT,iM,ivItemcat)
+      if(any(ivItemcat>2)){
+        out = lukosel_fun_poly(mY,id_high,iT,iM,ivItemcat,verbose)
         step1mat = matrix(as.character(round(unlist(out[4:8]),2)),length(iT),5,
                           dimnames=list(paste0("iT=",iT),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
@@ -234,17 +295,21 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step2mat[step2mat=="Inf"|step2mat=="-Inf"|is.na(step2mat)] = "-"
         step3mat = matrix(as.character(round(unlist(out[14:18]),2)),length(iT),5,
-                          dimnames=list(paste0("iT=",iT,"iM=",out$iM_opt),
+                          dimnames=list(paste0("iT=",iT,"iM*"),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step3mat[step3mat=="Inf"|step3mat=="-Inf"|is.na(step3mat)] = "-"
-        optimal = matrix(paste0("iT=",out$iT_opt,",iM=",out$iM_opt),dimnames=list("",""))
+        optimal = matrix(c(out$iT_opt,out$iM_opt),dimnames=list(c("iT=","iM="),""))
         list_luk = list(step1 = step1mat,step2 = step2mat,step3 = step3mat, optimal = optimal)
-        out = clean_output3(out$outmuLCA_step3,Y,out$iT_opt,out$iM_opt,mY,id_high,length(Y),
-                            id_high_levs,id_high_name,extout,dataout)
+        if(out$iM_opt>1){
+          out = clean_output3(out$outmuLCA_step3,Y,out$iT_opt,out$iM_opt,mY,id_high,length(Y),
+                              id_high_levs,id_high_name,extout,dataout)
+        } else if(out$iM_opt==1){
+          out = clean_output1(out$outmuLCA_step3,Y,out$iT_opt,length(Y),extout,dataout)
+        }
         out$model_selection = list_luk
         if(verbose)print(noquote(list_luk))
       } else{
-        out = lukosel_fun(mY,id_high,iT,iM)
+        out = lukosel_fun(mY,id_high,iT,iM,verbose)
         step1mat = matrix(as.character(round(unlist(out[4:8]),2)),length(iT),5,
                           dimnames=list(paste0("iT=",iT),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
@@ -254,18 +319,29 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step2mat[step2mat=="Inf"|step2mat=="-Inf"|is.na(step2mat)] = "-"
         step3mat = matrix(as.character(round(unlist(out[14:18]),2)),length(iT),5,
-                          dimnames=list(paste0("iT=",iT,"iM=",out$iM_opt),
+                          dimnames=list(paste0("iT=",iT,"iM*"),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step3mat[step3mat=="Inf"|step3mat=="-Inf"|is.na(step3mat)] = "-"
-        optimal = matrix(paste0("iT=",out$iT_opt,",iM=",out$iM_opt),dimnames=list("",""))
+        optimal = matrix(c(out$iT_opt,out$iM_opt),dimnames=list(c("iT=","iM="),""))
         list_luk = list(step1 = step1mat,step2 = step2mat,step3 = step3mat, optimal = optimal)
-        out = clean_output3(out$outmuLCA_step3,Y,out$iT_opt,out$iM_opt,mY,id_high,length(Y),
-                            id_high_levs,id_high_name,extout,dataout)
+        if(out$iM_opt>1){
+          out = clean_output3(out$outmuLCA_step3,Y,out$iT_opt,out$iM_opt,mY,id_high,length(Y),
+                              id_high_levs,id_high_name,extout,dataout)
+        } else if(out$iM_opt==1){
+          out = clean_output1(out$outmuLCA_step3,Y,out$iT_opt,length(Y),extout,dataout)
+        }
         out$model_selection = list_luk
         if(verbose)print(noquote(list_luk))
       }
     } else{
-      if(any(ivItemcat)>2){
+      #
+      if(verbose){
+        pb=txtProgressBar(char="Fitting measurement models simultaneously...",width=1)
+        setTxtProgressBar(pb,1)
+        close(pb)
+      }
+      #
+      if(any(ivItemcat>2)){
         mYfoo       = mY
         id_highfoo  = id_high
         ivItemcatfoo = ivItemcat
@@ -311,12 +387,18 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                         2,
                         function(x){round(as.numeric(x),2)})
         rownames(mod_sel) = paste0("iT=",select_mat[,1],",iM=",select_mat[,2])
-        optimal  = which.min(mod_sel[,1])
+        r_optimal = which.min(mod_sel[,1])
+        optimal   = matrix(c(select_mat[r_optimal,1],select_mat[r_optimal,2]),dimnames=list(c("iT=","iM="),""))
         mod_sel[mod_sel==Inf|mod_sel==-Inf|is.na(mod_sel)] = "-"
-        list_simul = list(model_selection=mod_sel,optimal=matrix(names(optimal),dimnames=list("","")))
-        out       = clean_output3(simultaneous_out[[optimal]]$fit,
-                                  Y,select_mat[optimal,1],select_mat[optimal,2],
-                                  mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+        list_simul = list(model_selection=mod_sel,optimal=optimal)
+        if(select_mat[r_optimal,2]>1){
+          out = clean_output3(simultaneous_out[[r_optimal]]$fit,
+                              Y,select_mat[r_optimal,1],select_mat[r_optimal,2],
+                              mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+        } else if(select_mat[r_optimal,2]==1){
+          out = clean_output1(simultaneous_out[[r_optimal]]$fit,
+                              Y,select_mat[r_optimal,1],length(Y),extout,dataout)
+        }
         out$model_selection = list_simul
         if(verbose)print(noquote(list_simul))
       } else{
@@ -363,17 +445,63 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                         2,
                         function(x){round(as.numeric(x),2)})
         rownames(mod_sel) = paste0("iT=",select_mat[,1],",iM=",select_mat[,2])
-        optimal  = which.min(mod_sel[,1])
+        r_optimal = which.min(mod_sel[,1])
+        optimal   = matrix(c(select_mat[r_optimal,1],select_mat[r_optimal,2]),dimnames=list(c("iT=","iM="),""))
         mod_sel[mod_sel==Inf|mod_sel==-Inf|is.na(mod_sel)] = "-"
-        list_simul = list(model_selection=mod_sel,optimal=matrix(names(optimal),dimnames=list("","")))
-        out       = clean_output3(simultaneous_out[[optimal]]$fit,
-                                  Y,select_mat[optimal,1],select_mat[optimal,2],
-                                  mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+        list_simul = list(model_selection=mod_sel,optimal=optimal)
+        if(select_mat[r_optimal,2]>1){
+          out = clean_output3(simultaneous_out[[r_optimal]]$fit,
+                              Y,select_mat[r_optimal,1],select_mat[r_optimal,2],
+                              mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+        } else if(select_mat[r_optimal,2]==1){
+          out = clean_output1(simultaneous_out[[r_optimal]]$fit,
+                              Y,select_mat[r_optimal,1],length(Y),extout,dataout)
+        }
         out$model_selection = list_simul
         if(verbose)print(noquote(list_simul))
       }
     }
   }
+  
+  if(nrow(data)<nrow_data){
+    if(fixed==1|fixed==2){
+      warning(paste("Missing values in columns for indicators,",
+                    "sample size for estimation of measurement model:",
+                    nrow(data)),call.=FALSE)
+    } else if(fixed==0&is.null(Z)){
+      warning(paste("Missing values in columns for indicators,",
+                    "sample size for estimation of measurement model:",
+                    nrow(data)),call.=FALSE)
+    } else if(fixed==0&!is.null(Z)){
+      if(nrow(na.omit(mZ))<nrow(data)){
+        warning(paste("Missing values in columns for indicators",
+                      "and columns for covariates,",
+                      "sample size for estimation:",
+                      nrow(na.omit(mZ))),call.=FALSE)
+      } else{
+        warning(paste("Missing values in columns for indicators,",
+                      "sample size for estimation:",
+                      nrow(data)),call.=FALSE)
+      }
+    }
+  }
+  if(approach=="direct"&!is.null(Z)){
+    if(nrow(na.omit(mZ))<nrow(data)){
+      if(fixed==1|fixed==2){
+        warning(paste("Missing values in columns for covariates,",
+                      "sample size for estimation of structural model:",
+                      nrow(na.omit(mZ))),call.=FALSE)
+      } else if(fixed==0){
+        if(nrow(data)==nrow_data){
+          warning(paste("Missing values in columns for covariates,",
+                        "sample size for estimation of structural model:",
+                        nrow(na.omit(mZ))),call.=FALSE)
+        }
+      }
+    }
+  }
+  
+  out$call = match.call()
   class(out) = "multiLCA"
   return(out)
 }
@@ -401,7 +529,7 @@ LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1)
 }
 #
 LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1,
-                              NRtol = 1e-6, NRmaxit = 100){
+                              NRtol = 1e-6, NRmaxit = 100, verbose){
   # mZ must include a column of ones!
   group_by_all    = NULL
   mY_df           = data.frame(mY)
@@ -426,6 +554,15 @@ LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, f
   Step1Var        = out$Varmat
   mY              = mY[complete.cases(mZ),]
   mZ              = mZ[complete.cases(mZ),]
+  #
+  if(verbose){
+    if(fixed==1|fixed==2){
+      pb=txtProgressBar(char="Fitting structural model...",width=1)
+      setTxtProgressBar(pb,1)
+      close(pb)
+    }
+  }
+  #
   outcov          = LCAcov(mY,mZ,iT,out$mPhi,mBeta_init,Step1Var,fixed,maxIter,
                            tol,NRtol,NRmaxit)
   return(list(out=out,outcov=outcov,mY=mY,mZ=mZ))
@@ -512,7 +649,7 @@ LCA_fast_init_poly = function(mY, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 
 }
 #
 LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1,
-                                   NRtol = 1e-6, NRmaxit = 100){
+                                   NRtol = 1e-6, NRmaxit = 100, verbose){
   # mZ must include a column of ones!
   # ivItemcat is the vector of number of categories for each item
   group_by_all    = NULL
@@ -538,6 +675,15 @@ LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, kmea = T, maxIter = 1e
   Step1Var        = out$Varmat
   mY              = mY[complete.cases(mZ),]
   mZ              = mZ[complete.cases(mZ),]
+  #
+  if(verbose){
+    if(fixed==1|fixed==2){
+      pb=txtProgressBar(char="Fitting structural model...",width=1)
+      setTxtProgressBar(pb,1)
+      close(pb)
+    }
+  }
+  #
   outcov          = LCAcov_poly(mY,mZ,iT,out$mPhi,mBeta_init,Step1Var,ivItemcat,fixed,maxIter,
                                 tol,NRtol,NRmaxit)
   return(list(out=out,outcov=outcov,mY=mY,mZ=mZ))
@@ -654,7 +800,7 @@ simultsel_fun = function(mY,id_high,iT,iM){
               ICL_BIClow = ICL_BIClow, ICL_BIChigh = ICL_BIChigh))
 }
 #
-lukosel_fun = function(mY,id_high,iT_range,iM_range){
+lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
   iH      = ncol(mY)
   K       = iH
   vNj     = table(id_high-1)
@@ -673,6 +819,13 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range){
   ICL_BIClow_step1  = rep(NA,num_iT)
   ICL_BIChigh_step1 = rep(NA,num_iT)
   for(i in iT_range){
+    #
+    if(verbose){
+      pb=txtProgressBar(char="Fitting single-level measurement model (step 1)...",width=1)
+      setTxtProgressBar(pb,1)
+      close(pb)
+    }
+    #
     if(i==1){
       llfoo                 = sum(apply(mY,2,function(x){dbinom(x,1,mean(x),log=T)}))
       BIClow_step1[1]       = -2*llfoo + K*log(sum(vNj))
@@ -702,6 +855,13 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range){
   ICL_BIChigh_step2 = rep(NA,num_iM)
   if(iT_currbest > 1){
     for(i in iM_range){
+      #
+      if(verbose){
+        pb=txtProgressBar(char="Fitting multilevel measurement model (step 2)...",width=1)
+        setTxtProgressBar(pb,1)
+        close(pb)
+      }
+      #
       if(i==1){
         BIClow_step2[1]       = BIClow_step1[1+iT_currbest-iT_min]
         BIChigh_step2[1]      = BIChigh_step1[1+iT_currbest-iT_min]
@@ -733,6 +893,13 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range){
   ICL_BIChigh_step3 = rep(NA,num_iT)
   if(iM_currbest > 1){
     for(i in iT_range){
+      #
+      if(verbose){
+        pb=txtProgressBar(char="Fitting multilevel measurement model (step 3)...",width=1)
+        setTxtProgressBar(pb,1)
+        close(pb)
+      }
+      #
       if(i>1){
         start     = meas_Init(mY,id_high,vNj,iM_currbest,i)
         vOmegast  = start$vOmega_start
@@ -759,7 +926,7 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range){
               ICL_BIClow_step3 = ICL_BIClow_step3, ICL_BIChigh_step3 = ICL_BIChigh_step3))
 }
 #
-sel_other = function(mY,id_high,iT_range,iM_range,approach){
+sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose){
   iH      = ncol(mY)
   K       = iH
   vNj     = table(id_high-1)
@@ -787,6 +954,13 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach){
     if(is.null(iM_range)){
       outmuLCA = list()
       for(i in iT_range){
+        #
+        if(verbose){
+          pb=txtProgressBar(char="Fitting measurement model...",width=1)
+          setTxtProgressBar(pb,1)
+          close(pb)
+        }
+        #
         if(i==1){
           outmuLCA[[1]]   = NA
           llfoo           = sum(apply(mY,2,function(x){dbinom(x,1,mean(x),log=T)}))
@@ -812,6 +986,13 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach){
     } else{
       outmuLCA  = list()
       for(i in iT_range){
+        #
+        if(verbose){
+          pb=txtProgressBar(char="Fitting measurement model...",width=1)
+          setTxtProgressBar(pb,1)
+          close(pb)
+        }
+        #
         if(i>1){
           start     = meas_Init(mY,id_high,vNj,iM_range,i)
           vOmegast  = start$vOmega_start
@@ -827,6 +1008,7 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach){
       iT_best   = which(BIClow==min(BIClow,na.rm=T))+iT_min-1
       outmuLCA  = outmuLCA[[1+iT_best-iT_min]]
     }
+    if(iT_best==1) stop("iT=1 optimal.",call.=FALSE)
     return(list(outmuLCA=outmuLCA,iT_best=iT_best,
                 BIClow=BIClow,BIChigh=BIChigh,AIC=AIC,
                 ICL_BIClow=ICL_BIClow,ICL_BIChigh=ICL_BIChigh))
@@ -839,6 +1021,13 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach){
     if(iT_range > 1){
       outmuLCA = list()
       for(i in iM_range){
+        #
+        if(verbose){
+          pb=txtProgressBar(char="Fitting measurement model...",width=1)
+          setTxtProgressBar(pb,1)
+          close(pb)
+        }
+        #
         if(i==1){
           outmuLCA[[1]]   = LCA_fast_init(mY,iT_range)
           ll              = tail(outmuLCA[[1]]$LLKSeries,1)
@@ -873,7 +1062,7 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach){
 #
 simultsel_fun_poly = function(mY,id_high,iT,iM,ivItemcat){
   LCAout  = NULL
-  iH      = ncol(mY)
+  iH      = sum(ivItemcat-1)
   K       = iH
   vNj     = table(id_high-1)
   iN      = length(vNj)
@@ -921,8 +1110,8 @@ simultsel_fun_poly = function(mY,id_high,iT,iM,ivItemcat){
               ICL_BIClow = ICL_BIClow, ICL_BIChigh = ICL_BIChigh))
 }
 #
-lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat){
-  iH      = ncol(mY)
+lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
+  iH      = sum(ivItemcat-1)
   K       = iH
   vNj     = table(id_high-1)
   iN      = length(vNj)
@@ -940,6 +1129,13 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat){
   ICL_BIClow_step1  = rep(NA,num_iT)
   ICL_BIChigh_step1 = rep(NA,num_iT)
   for(i in iT_range){
+    #
+    if(verbose){
+      pb=txtProgressBar(char="Fitting single-level measurement model (step 1)...",width=1)
+      setTxtProgressBar(pb,1)
+      close(pb)
+    }
+    #
     if(i==1){
       llfoo                 = sum(apply(mY,2,function(x){dbinom(x,1,mean(x),log=T)}))
       BIClow_step1[1]       = -2*llfoo + K*log(sum(vNj))
@@ -969,6 +1165,13 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat){
   ICL_BIChigh_step2 = rep(NA,num_iM)
   if(iT_currbest > 1){
     for(i in iM_range){
+      #
+      if(verbose){
+        pb=txtProgressBar(char="Fitting multilevel measurement model (step 2)...",width=1)
+        setTxtProgressBar(pb,1)
+        close(pb)
+      }
+      #
       if(i==1){
         BIClow_step2[1]       = BIClow_step1[1+iT_currbest-iT_min]
         BIChigh_step2[1]      = BIChigh_step1[1+iT_currbest-iT_min]
@@ -1000,6 +1203,13 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat){
   ICL_BIChigh_step3 = rep(NA,num_iT)
   if(iM_currbest > 1){
     for(i in iT_range){
+      #
+      if(verbose){
+        pb=txtProgressBar(char="Fitting multilevel measurement model (step 3)...",width=1)
+        setTxtProgressBar(pb,1)
+        close(pb)
+      }
+      #
       if(i>2){
         start     = meas_Init_poly(mY,id_high,vNj,iM_currbest,i,ivItemcat)
         vOmegast  = start$vOmega_start
@@ -1026,8 +1236,8 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat){
               ICL_BIClow_step3 = ICL_BIClow_step3, ICL_BIChigh_step3 = ICL_BIChigh_step3))
 }
 #
-sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach){
-  iH      = ncol(mY)
+sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbose){
+  iH      = sum(ivItemcat-1)
   K       = iH
   vNj     = table(id_high-1)
   iN      = length(vNj)
@@ -1054,6 +1264,13 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach){
     if(is.null(iM_range)){
       outmuLCA = list()
       for(i in iT_range){
+        #
+        if(verbose){
+          pb=txtProgressBar(char="Fitting measurement model...",width=1)
+          setTxtProgressBar(pb,1)
+          close(pb)
+        }
+        #
         if(i==1){
           outmuLCA[[1]]   = NA
           llfoo           = sum(apply(mY,2,function(x){dbinom(x,1,mean(x),log=T)}))
@@ -1079,6 +1296,13 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach){
     } else{
       outmuLCA  = list()
       for(i in iT_range){
+        #
+        if(verbose){
+          pb=txtProgressBar(char="Fitting measurement model...",width=1)
+          setTxtProgressBar(pb,1)
+          close(pb)
+        }
+        #
         if(i>1){
           start     = meas_Init_poly(mY,id_high,vNj,iM_range,i,ivItemcat)
           vOmegast  = start$vOmega_start
@@ -1094,6 +1318,7 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach){
       iT_best   = which(BIClow==min(BIClow,na.rm=T))+iT_min-1
       outmuLCA  = outmuLCA[[1+iT_best-iT_min]]
     }
+    if(iT_best==1) stop("iT=1 optimal.",call.=FALSE)
     return(list(outmuLCA=outmuLCA,iT_best=iT_best,
                 BIClow=BIClow,BIChigh=BIChigh,AIC=AIC,
                 ICL_BIClow=ICL_BIClow,ICL_BIChigh=ICL_BIChigh))
@@ -1106,6 +1331,13 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach){
     if(iT_range > 1){
       outmuLCA = list()
       for(i in iM_range){
+        #
+        if(verbose){
+          pb=txtProgressBar(char="Fitting measurement model...",width=1)
+          setTxtProgressBar(pb,1)
+          close(pb)
+        }
+        #
         if(i==1){
           outmuLCA[[1]]   = LCA_fast_init_poly(mY,iT_range,ivItemcat)
           ll              = tail(outmuLCA[[1]]$LLKSeries,1)
@@ -1147,26 +1379,26 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     out = list()
     
     # Add vector of class proportions
-    out$vPg           = output$pg
-    rownames(out$vPg) = paste0("P(C",1:iT,")")
-    colnames(out$vPg) = ""
+    out$vPi           = output$pg
+    rownames(out$vPi) = paste0("P(C",1:iT,")")
+    colnames(out$vPi) = ""
     
     # Add matrix of conditional response probabilities
     out$mPhi            = output$mPhi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
     
-    # Add Akaike information criterion
-    out$AIC = output$AIC
-    
-    # Add Bayesian information criterion
-    out$BIC = output$BIC
-    
     # Add average proportion of classification errors
     out$AvgClassErrProb = output$dClassErr_tot
     
     # Add entropy R-sqr
     out$R2entr = output$R2entr
+    
+    # Add Bayesian information criterion
+    out$BIC = output$BIC
+    
+    # Add Akaike information criterion
+    out$AIC = output$AIC
     
     # Add number of iterations
     out$iter = output$iter
@@ -1184,41 +1416,14 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     out = list()
     
     # Add vector of class proportions
-    out$vPg           = output$pg
-    rownames(out$vPg) = paste0("P(C",1:iT,")")
-    colnames(out$vPg) = ""
+    out$vPi           = output$pg
+    rownames(out$vPi) = paste0("P(C",1:iT,")")
+    colnames(out$vPi) = ""
     
     # Add matrix of conditional response probabilities
     out$mPhi            = output$mPhi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
-    
-    # Add alphas
-    out$alphas            = output$alphas
-    rownames(out$alphas)  = paste0("alpha(C",2:iT,")")
-    colnames(out$alphas)  = ""
-    
-    # Add gammas
-    out$gammas            = output$gamma
-    rownames(out$gammas)  = paste0("gamma(",Y,"|C)")
-    colnames(out$gammas)  = colnames(out$mPhi)
-    
-    # Add vector of model parameters
-    out$parvec            = output$parvec
-    rownames(out$parvec)  = c(rownames(out$alphas),paste0(rep(substr(rownames(out$gammas),1,nchar(rownames(out$gammas))-2),iT),rep(colnames(out$gammas),rep(iH,iT)),")"))
-    colnames(out$parvec)  = ""
-    
-    # Add variance-covariance matrix
-    out$Varmat            = output$Varmat
-    rownames(out$Varmat)  = colnames(out$Varmat) = rownames(out$parvec)
-    
-    # Add vector of standard errors
-    out$SEs           = output$SEs
-    rownames(out$SEs) = rownames(out$parvec)
-    colnames(out$SEs) = ""
-    
-    # Add epsilon
-    out$eps = output$eps
     
     # Add matrix of posterior class membership probabilities
     out$mU            = output$mU
@@ -1229,7 +1434,7 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     colnames(out$mU_modal)  = colnames(out$mPhi)
     
     # Add vector of modal class assignment
-    out$vU_modal = output$vModalAssnm
+    out$vU_modal = output$vModalAssnm+1
     
     # Add matrix of classification errors
     out$mClassErr           = output$mClassErr
@@ -1247,14 +1452,41 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     # Add entropy R-sqr
     out$R2entr = output$R2entr
     
-    # Add Akaike information criterion
-    out$AIC = output$AIC
-    
     # Add Bayesian information criterion
     out$BIC = output$BIC
     
+    # Add Akaike information criterion
+    out$AIC = output$AIC
+    
+    # Add gammas
+    out$vGamma            = output$alphas
+    rownames(out$vGamma)  = paste0("gamma(C",2:iT,")")
+    colnames(out$vGamma)  = ""
+    
+    # Add betas
+    out$mBeta           = output$gamma
+    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    colnames(out$mBeta) = colnames(out$mPhi)
+    
+    # Add vector of model parameters
+    out$parvec            = output$parvec
+    rownames(out$parvec)  = c(rownames(out$vGamma),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    colnames(out$parvec)  = ""
+    
+    # Add vector of standard errors
+    out$SEs           = output$SEs
+    rownames(out$SEs) = rownames(out$parvec)
+    colnames(out$SEs) = ""
+    
+    # Add variance-covariance matrix
+    out$Varmat            = output$Varmat
+    rownames(out$Varmat)  = colnames(out$Varmat) = rownames(out$parvec)
+    
     # Add number of iterations
     out$iter = output$iter
+    
+    # Add epsilon
+    out$eps = output$eps
     
     # Add log-likelihood series
     out$LLKSeries = output$LLKSeries
@@ -1286,36 +1518,36 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
     out = list()
     
     # Add vector of sample means of class proportions
-    out$vPg_avg           = as.matrix(apply(output$mPg,2,mean))
-    rownames(out$vPg_avg) = paste0("P(C",1:iT,")")
-    colnames(out$vPg_avg) = ""
+    out$vPi_avg           = as.matrix(apply(output$mPg,2,mean))
+    rownames(out$vPi_avg) = paste0("P(C",1:iT,")")
+    colnames(out$vPi_avg) = ""
     
     # Add matrix of conditional response probabilities
     out$mPhi            = output$mPhi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
     
-    # Add betas
-    out$betas           = output$beta
-    rownames(out$betas) = paste0("beta(",Z,"|C)")
-    colnames(out$betas) = paste0("C",2:iT)
-    
-    # Add corrected standard errors for beta
-    out$SEs_cor_beta            = matrix(output$SEs_cor[1:((iT-1)*P),],P,iT-1)
-    rownames(out$SEs_cor_beta)  = rownames(out$betas)
-    colnames(out$SEs_cor_beta)  = colnames(out$betas)
-    
-    # Add Akaike information criterion
-    out$AIC = output$AIC
-    
-    # Add Bayesian information criterion
-    out$BIC = output$BIC
-    
     # Add average proportion of classification errors
     out$AvgClassErrProb = output$dClassErr_tot
     
     # Add entropy R-sqr
     out$R2entr = output$R2entr
+    
+    # Add Bayesian information criterion
+    out$BIC = output$BIC
+    
+    # Add Akaike information criterion
+    out$AIC = output$AIC
+    
+    # Add gammas
+    out$cGamma          = output$beta
+    rownames(out$cGamma) = paste0("gamma(",Z,"|C)")
+    colnames(out$cGamma) = paste0("C",2:iT)
+    
+    # Add corrected standard errors for gamma
+    out$SEs_cor_gamma            = matrix(output$SEs_cor[1:((iT-1)*P),],P,iT-1)
+    rownames(out$SEs_cor_gamma)  = rownames(out$cGamma)
+    colnames(out$SEs_cor_gamma)  = colnames(out$cGamma)
     
     # Add number of iterations
     out$iter = output$iter
@@ -1333,67 +1565,18 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
     out = list()
     
     # Add matrix of class proportions
-    out$mPg           = output$mPg
-    colnames(out$mPg) = paste0("P(C",1:iT,")")
+    out$mPi           = output$mPg
+    colnames(out$mPi) = paste0("P(C",1:iT,")")
     
     # Add vector of sample means of class proportions
-    out$vPg_avg           = as.matrix(apply(output$mPg,2,mean))
-    rownames(out$vPg_avg) = colnames(out$mPg)
-    colnames(out$vPg_avg) = ""
+    out$vPi_avg           = as.matrix(apply(output$mPg,2,mean))
+    rownames(out$vPi_avg) = colnames(out$mPi)
+    colnames(out$vPi_avg) = ""
     
     # Add matrix of conditional response probabilities
     out$mPhi            = output$mPhi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
-    
-    # Add gammas
-    out$gammas            = output$gamma
-    rownames(out$gammas)  = paste0("gamma(",Y,"|C)")
-    colnames(out$gammas)  = colnames(out$mPhi)
-    
-    # Add betas
-    out$betas           = output$beta
-    rownames(out$betas) = paste0("beta(",Z,"|C)")
-    colnames(out$betas) = paste0("C",2:iT)
-    
-    # Add vector of model parameters
-    out$parvec            = output$parvec
-    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$betas),1,nchar(rownames(out$betas))-2),iT-1),rep(colnames(out$betas),rep(P,iT-1)),")"),paste0(rep(substr(rownames(out$gammas),1,nchar(rownames(out$gammas))-2),iT),rep(colnames(out$gammas),rep(iH,iT)),")"))
-    colnames(out$parvec)  = ""
-    
-    # Add inverse of the information matrix from the second step
-    out$mV2           = output$mV2
-    rownames(out$mV2) = colnames(out$mV2) = paste0(rep(substr(rownames(out$betas),1,nchar(rownames(out$betas))-2),iT-1),rep(colnames(out$betas),rep(P,iT-1)),")")
-    
-    # Add mQ
-    out$mQ            = output$mQ
-    rownames(out$mQ)  = colnames(out$mQ) = rownames(out$mV2)
-    
-    # Add uncorrected variance-covariance matrix
-    out$Varmat_unc            = output$Varmat_unc[1:((iT-1)*P),1:((iT-1)*P)]
-    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
-    
-    # Add corrected variance-covariance matrix
-    out$Varmat_cor            = output$Varmat_cor
-    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$mV2)
-    
-    # Add vector of uncorrected standard errors
-    out$SEs_unc           = as.matrix(output$SEs_unc[1:((iT-1)*P),])
-    rownames(out$SEs_unc) = rownames(out$mV2)
-    colnames(out$SEs_unc) = ""
-    
-    # Add vector of corrected standard errors
-    out$SEs_cor           = as.matrix(output$SEs_cor[1:((iT-1)*P),])
-    rownames(out$SEs_cor) = rownames(out$mV2)
-    colnames(out$SEs_cor) = ""
-    
-    # Add corrected standard errors for beta
-    out$SEs_cor_beta            = matrix(output$SEs_cor[1:((iT-1)*P),],P,iT-1)
-    rownames(out$SEs_cor_beta)  = rownames(out$betas)
-    colnames(out$SEs_cor_beta)  = colnames(out$betas)
-    
-    # Add epsilon
-    out$eps = output$eps
     
     # Add matrix of posterior class membership probabilities
     out$mU            = output$mU
@@ -1415,14 +1598,63 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
     # Add entropy R-sqr
     out$R2entr = output$R2entr
     
-    # Add Akaike information criterion
-    out$AIC = output$AIC
-    
     # Add Bayesian information criterion
     out$BIC = output$BIC
     
+    # Add Akaike information criterion
+    out$AIC = output$AIC
+    
+    # Add gammas
+    out$cGamma          = output$beta
+    rownames(out$cGamma) = paste0("gamma(",Z,"|C)")
+    colnames(out$cGamma) = paste0("C",2:iT)
+    
+    # Add betas
+    out$mBeta           = output$gamma
+    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    colnames(out$mBeta) = colnames(out$mPhi)
+    
+    # Add vector of model parameters
+    out$parvec            = output$parvec
+    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$cGamma),1,nchar(rownames(out$cGamma))-2),iT-1),rep(colnames(out$cGamma),rep(P,iT-1)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    colnames(out$parvec)  = ""
+    
+    # Add vector of uncorrected standard errors
+    out$SEs_unc           = as.matrix(output$SEs_unc[1:((iT-1)*P),])
+    rownames(out$SEs_unc) = rownames(out$mV2)
+    colnames(out$SEs_unc) = ""
+    
+    # Add vector of corrected standard errors
+    out$SEs_cor           = as.matrix(output$SEs_cor[1:((iT-1)*P),])
+    rownames(out$SEs_cor) = rownames(out$mV2)
+    colnames(out$SEs_cor) = ""
+    
+    # Add corrected standard errors for gamma
+    out$SEs_cor_gamma            = matrix(output$SEs_cor[1:((iT-1)*P),],P,iT-1)
+    rownames(out$SEs_cor_gamma)  = rownames(out$cGamma)
+    colnames(out$SEs_cor_gamma)  = colnames(out$cGamma)
+    
+    # Add mQ
+    out$mQ            = output$mQ
+    rownames(out$mQ)  = colnames(out$mQ) = rownames(out$mV2)
+    
+    # Add uncorrected variance-covariance matrix
+    out$Varmat_unc            = output$Varmat_unc[1:((iT-1)*P),1:((iT-1)*P)]
+    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
+    
+    # Add corrected variance-covariance matrix
+    out$Varmat_cor            = output$Varmat_cor
+    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$mV2)
+    
+    # Add inverse of the information matrix from the second step
+    out$mV2           = output$mV2
+    rownames(out$mV2) = colnames(out$mV2) = paste0(rep(substr(rownames(out$cGamma),1,nchar(rownames(out$cGamma))-2),iT-1),rep(colnames(out$cGamma),rep(P,iT-1)),")")
+    
     # Add number of iterations
     out$iter = output$iter
+    
+    # Add epsilon
+    out$eps = output$eps
     
     # Add log-likelihood series
     out$LLKSeries = output$LLKSeries
@@ -1463,8 +1695,11 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
     
-    # Add Akaike information criterion
-    out$AIC = output$AIC
+    # Add low-level entropy R-sqr
+    out$R2entr_low = output$R2entr_low
+    
+    # Add high-level entropy R-sqr
+    out$R2entr_high = output$R2entr_high
     
     # Add low-level Bayesian information criterion
     out$BIClow = output$BIClow
@@ -1478,11 +1713,8 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     # Add high-level integrated completed likelihood Bayesian information criterion
     out$ICL_BIChigh = output$ICL_BIChigh
     
-    # Add low-level entropy R-sqr
-    out$R2entr_low = output$R2entr_low
-    
-    # Add high-level entropy R-sqr
-    out$R2entr_high = output$R2entr_high
+    # Add Akaike information criterion
+    out$AIC = output$AIC
     
     # Add number of iterations
     out$iter = output$iter
@@ -1513,42 +1745,6 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     out$mPhi            = output$mPhi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
-    
-    # Add deltas
-    out$vDelta            = output$vDelta
-    rownames(out$vDelta)  = paste0("delta(G",2:iM,")")
-    colnames(out$vDelta)  = ""
-    
-    # Add gammas
-    out$mGamma            = output$mGamma
-    rownames(out$mGamma)  = paste0("gamma(C",2:iT,"|G)")
-    colnames(out$mGamma)  = colnames(out$mPi)
-    
-    # Add betas
-    out$mBeta           = output$mBeta
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
-    colnames(out$mBeta) = colnames(out$mPhi)
-    
-    # Add vector of model parameters
-    out$parvec            = output$parvec
-    rownames(out$parvec)  = c(rownames(out$vDelta),paste0(rep(substr(rownames(out$mGamma),1,nchar(rownames(out$mGamma))-2),iM),rep(colnames(out$mGamma),rep(iT-1,iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
-    colnames(out$parvec)  = ""
-    
-    # Add Fisher information matrix
-    out$Infomat           = output$Infomat
-    rownames(out$Infomat) = colnames(out$Infomat) = rownames(out$parvec)
-    
-    # Add variance-covariance matrix
-    out$Varmat            = output$Varmat
-    rownames(out$Varmat)  = colnames(out$Varmat) = rownames(out$parvec)
-    
-    # Add vector of standard errors
-    out$SEs           = output$SEs
-    rownames(out$SEs) = rownames(out$parvec)
-    colnames(out$SEs) = ""
-    
-    # Add epsilon
-    out$eps = output$eps
     
     # Add cube of joint posterior class membership probabilities
     out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL, paste0("C",1:iT,",G"), colnames(out$mPi)))
@@ -1590,9 +1786,6 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     # Add high-level entropy R-sqr
     out$R2entr_high = output$R2entr_high
     
-    # Add Akaike information criterion
-    out$AIC = output$AIC
-    
     # Add low-level Bayesian information criterion
     out$BIClow = output$BIClow
     
@@ -1605,8 +1798,47 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     # Add high-level integrated completed likelihood Bayesian information criterion
     out$ICL_BIChigh = output$ICL_BIChigh
     
+    # Add Akaike information criterion
+    out$AIC = output$AIC
+    
+    # Add alphas
+    out$vAlpha            = output$vDelta
+    rownames(out$vAlpha)  = paste0("alpha(G",2:iM,")")
+    colnames(out$vAlpha)  = ""
+    
+    # Add gammas
+    out$mGamma            = output$mGamma
+    rownames(out$mGamma)  = paste0("gamma(C",2:iT,"|G)")
+    colnames(out$mGamma)  = colnames(out$mPi)
+    
+    # Add betas
+    out$mBeta           = output$mBeta
+    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    colnames(out$mBeta) = colnames(out$mPhi)
+    
+    # Add vector of model parameters
+    out$parvec            = output$parvec
+    rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(rep(substr(rownames(out$mGamma),1,nchar(rownames(out$mGamma))-2),iM),rep(colnames(out$mGamma),rep(iT-1,iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    colnames(out$parvec)  = ""
+    
+    # Add vector of standard errors
+    out$SEs           = output$SEs
+    rownames(out$SEs) = rownames(out$parvec)
+    colnames(out$SEs) = ""
+    
+    # Add variance-covariance matrix
+    out$Varmat            = output$Varmat
+    rownames(out$Varmat)  = colnames(out$Varmat) = rownames(out$parvec)
+    
+    # Add Fisher information matrix
+    out$Infomat           = output$Infomat
+    rownames(out$Infomat) = colnames(out$Infomat) = rownames(out$parvec)
+    
     # Add number of iterations
     out$iter = output$iter
+    
+    # Add epsilon
+    out$eps = output$eps
     
     # Add log-likelihood series
     out$LLKSeries = output$LLKSeries
@@ -1658,14 +1890,11 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
     
-    # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,"|G"),colnames(out$mPi_avg)))
+    # Add low-level entropy R-sqr
+    out$R2entr_low = output$R2entr_low
     
-    # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
-    
-    # Add Akaike information criterion
-    out$AIC = output$AIC
+    # Add high-level entropy R-sqr
+    out$R2entr_high = output$R2entr_high
     
     # Add low-level Bayesian information criterion
     out$BIClow = output$BIClow
@@ -1679,11 +1908,15 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     # Add high-level integrated completed likelihood Bayesian information criterion
     out$ICL_BIChigh = output$ICL_BIChigh
     
-    # Add low-level entropy R-sqr
-    out$R2entr_low = output$R2entr_low
+    # Add Akaike information criterion
+    out$AIC = output$AIC
     
-    # Add high-level entropy R-sqr
-    out$R2entr_high = output$R2entr_high
+    # Add gammas
+    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    
+    # Add corrected standard errors for gamma
+    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    
     
     # Add number of iterations
     out$iter = output$iter
@@ -1718,63 +1951,6 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     out$mPhi            = output$mPhi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
-    
-    # Add deltas
-    out$vDelta            = output$vDelta
-    rownames(out$vDelta)  = paste0("delta(G",2:iM,")")
-    colnames(out$vDelta)  = ""
-    
-    # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,"|G"),paste0("G",1:iM)))
-    
-    # Add betas
-    out$mBeta           = output$mBeta
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
-    colnames(out$mBeta) = colnames(out$mPhi)
-    
-    # Add vector of model parameters
-    out$parvec            = output$parvec
-    rownames(out$parvec)  = c(rownames(out$vDelta),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),"|")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
-    colnames(out$parvec)  = ""
-    
-    # Add Fisher information matrix
-    out$Infomat           = output$Infomat
-    rownames(out$Infomat) = rownames(out$parvec)
-    
-    # Add cube of Fisher information matrix for gamma
-    out$cGamma_Info = array(output$cGamma_Info,dim(output$cGamma_Info),dimnames=list(paste0("gamma(",Z,"|C|G)"),paste0("gamma(",Z,"|C|G)"),paste0("C", 2:iT,rep(paste0("|G", 1:iM),rep(iT-1,iM)))))
-    
-    # Add inverse of the information matrix from the second step
-    out$mV2           = output$mV2
-    rownames(out$mV2) = colnames(out$mV2) = c(rownames(out$vDelta),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),"|")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
-    
-    # Add mQ
-    out$mQ            = output$mQ
-    rownames(out$mQ)  = colnames(out$mQ) = rownames(out$mV2)
-    
-    # Add uncorrected variance-covariance matrix
-    out$Varmat_unc            = output$Varmat[1:(iM-1+P*(iT-1)*iM),1:(iM-1+P*(iT-1)*iM)]
-    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
-    
-    # Add corrected variance-covariance matrix
-    out$Varmat_cor            = output$mVar_corr
-    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$mV2)
-    
-    # Add vector of uncorrected standard errors
-    out$SEs_unc           = as.matrix(output$SEs_unc[1:(iM-1+P*(iT-1)*iM),])
-    rownames(out$SEs_unc) = rownames(out$mV2)
-    colnames(out$SEs_unc) = ""
-    
-    # Add vector of corrected standard errors
-    out$SEs_cor           = as.matrix(output$SEs_cor[1:(iM-1+P*(iT-1)*iM),])
-    rownames(out$SEs_cor) = rownames(out$mV2)
-    colnames(out$SEs_cor) = ""
-    
-    # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma), dimnames=dimnames(out$cGamma))
-    
-    # Add epsilon
-    out$eps = output$eps
     
     # Add cube of joint posterior class membership probabilities
     out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL,paste0("C",1:iT,",G"),colnames(out$mPi_avg)))
@@ -1816,9 +1992,6 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     # Add high-level entropy R-sqr
     out$R2entr_high = output$R2entr_high
     
-    # Add Akaike information criterion
-    out$AIC = output$AIC
-    
     # Add low-level Bayesian information criterion
     out$BIClow = output$BIClow
     
@@ -1831,8 +2004,68 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     # Add high-level integrated completed likelihood Bayesian information criterion
     out$ICL_BIChigh = output$ICL_BIChigh
     
+    # Add Akaike information criterion
+    out$AIC = output$AIC
+    
+    # Add alphas
+    out$vAlpha            = output$vDelta
+    rownames(out$vAlpha)  = paste0("alpha(G",2:iM,")")
+    colnames(out$vAlpha)  = ""
+    
+    # Add gammas
+    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),paste0("G",1:iM)))
+    
+    # Add betas
+    out$mBeta           = output$mBeta
+    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    colnames(out$mBeta) = colnames(out$mPhi)
+    
+    # Add vector of model parameters
+    out$parvec            = output$parvec
+    rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    colnames(out$parvec)  = ""
+    
+    # Add vector of uncorrected standard errors
+    out$SEs_unc           = as.matrix(output$SEs_unc[1:(iM-1+P*(iT-1)*iM),])
+    rownames(out$SEs_unc) = rownames(out$mV2)
+    colnames(out$SEs_unc) = ""
+    
+    # Add vector of corrected standard errors
+    out$SEs_cor           = as.matrix(output$SEs_cor[1:(iM-1+P*(iT-1)*iM),])
+    rownames(out$SEs_cor) = rownames(out$mV2)
+    colnames(out$SEs_cor) = ""
+    
+    # Add corrected standard errors for gamma
+    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma), dimnames=dimnames(out$cGamma))
+    
+    # Add mQ
+    out$mQ            = output$mQ
+    rownames(out$mQ)  = colnames(out$mQ) = rownames(out$mV2)
+    
+    # Add uncorrected variance-covariance matrix
+    out$Varmat_unc            = output$Varmat[1:(iM-1+P*(iT-1)*iM),1:(iM-1+P*(iT-1)*iM)]
+    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
+    
+    # Add corrected variance-covariance matrix
+    out$Varmat_cor            = output$mVar_corr
+    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$mV2)
+    
+    # Add Fisher information matrix
+    out$Infomat           = output$Infomat
+    rownames(out$Infomat) = rownames(out$parvec)
+    
+    # Add cube of Fisher information matrix for gamma
+    out$cGamma_Info = array(output$cGamma_Info,dim(output$cGamma_Info),dimnames=list(paste0("gamma(",Z,"|C,G)"),paste0("gamma(",Z,"|C,G)"),paste0("C", 2:iT,rep(paste0(",G", 1:iM),rep(iT-1,iM)))))
+    
+    # Add inverse of the information matrix from the second step
+    out$mV2           = output$mV2
+    rownames(out$mV2) = colnames(out$mV2) = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
+    
     # Add number of iterations
     out$iter = output$iter
+    
+    # Add epsilon
+    out$eps = output$eps
     
     # Add log-likelihood series
     out$LLKSeries = output$LLKSeries
@@ -1848,7 +2081,7 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     
     # Add subset of matrix of model parameter contributions to log-likelihood score for gamma
     out$mGamma_Score            = output$mGamma_Score
-    colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),"|")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
+    colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
     
     # Add specification
     out$spec            = as.matrix("Multilevel LC model with low-level covariates")
@@ -1889,24 +2122,11 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
     
-    # Add deltas
-    out$mDelta            = t(output$mDelta)
-    rownames(out$mDelta)  = paste0("delta(",Zh,"|G)")
-    colnames(out$mDelta)  = paste0("G",2:iM)
+    # Add low-level entropy R-sqr
+    out$R2entr_low = output$R2entr_low
     
-    # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,"|G"),colnames(out$mPi_avg)))
-    
-    # Add corrected standard errors for delta
-    out$SEs_cor_delta = t(matrix(output$SEs_cor[1:(P_high*(iM-1))],iM-1,P_high))
-    rownames(out$SEs_cor_delta) = rownames(out$mDelta)
-    colnames(out$SEs_cor_delta) = colnames(out$mDelta)
-    
-    # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
-    
-    # Add Akaike information criterion
-    out$AIC = output$AIC
+    # Add high-level entropy R-sqr
+    out$R2entr_high = output$R2entr_high
     
     # Add low-level Bayesian information criterion
     out$BIClow = output$BIClow
@@ -1920,11 +2140,24 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     # Add high-level integrated completed likelihood Bayesian information criterion
     out$ICL_BIChigh = output$ICL_BIChigh
     
-    # Add low-level entropy R-sqr
-    out$R2entr_low = output$R2entr_low
+    # Add Akaike information criterion
+    out$AIC = output$AIC
     
-    # Add high-level entropy R-sqr
-    out$R2entr_high = output$R2entr_high
+    # Add alphas
+    out$mAlpha            = t(output$mDelta)
+    rownames(out$mAlpha)  = paste0("alpha(",Zh,"|G)")
+    colnames(out$mAlpha)  = paste0("G",2:iM)
+    
+    # Add gammas
+    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    
+    # Add corrected standard errors for alpha
+    out$SEs_cor_alpha = t(matrix(output$SEs_cor[1:(P_high*(iM-1))],iM-1,P_high))
+    rownames(out$SEs_cor_alpha) = rownames(out$mAlpha)
+    colnames(out$SEs_cor_alpha) = colnames(out$mAlpha)
+    
+    # Add corrected standard errors for gamma
+    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
     
     # Add number of iterations
     out$iter = output$iter
@@ -1963,71 +2196,6 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     out$mPhi            = output$mPhi
     rownames(out$mPhi)  = paste0("P(",Y,"|C)")
     colnames(out$mPhi)  = paste0("C",1:iT)
-    
-    # Add deltas
-    out$mDelta            = t(output$mDelta)
-    rownames(out$mDelta)  = paste0("delta(",Zh,"|G)")
-    colnames(out$mDelta)  = paste0("G",2:iM)
-    
-    # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,"|G"),colnames(out$mPi_avg)))
-    
-    # Add betas
-    out$mBeta           = output$mBeta
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
-    colnames(out$mBeta) = colnames(out$mPhi)
-    
-    # Add vector of model parameters
-    out$parvec            = output$parvec
-    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mDelta),1,nchar(rownames(out$mDelta))-2),rep(iM-1,P_high)),rep(colnames(out$mDelta),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),"|")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
-    colnames(out$parvec)  = ""
-    
-    # Add Fisher information matrix
-    out$Infomat           = output$Infomat
-    rownames(out$Infomat) = colnames(out$Infomat) = rownames(out$parvec)
-    
-    # Add cube of Fisher information matrix for delta
-    out$cDelta_Info = array(output$cDelta_Info, dim(output$cDelta_Info), dimnames=list(paste0("delta(",Zh,"|G)"),paste0("delta(",Zh,"|G)"),colnames(out$mDelta)))
-    
-    # Add cube of Fisher information matrix for gamma
-    out$cGamma_Info = array(output$cGamma_Info, dim(output$cGamma_Info), dimnames=list(paste0("gamma(",Z,"|C|G)"),paste0("gamma(",Z,"|C|G)"),paste0("C",2:iT,rep(paste0("|G",1:iM),rep(iT-1,iM)))))
-    
-    # Add inverse of the information matrix from the second step
-    out$mV2           = output$mV2
-    rownames(out$mV2) = colnames(out$mV2) = c(paste0(rep(substr(rownames(out$mDelta),1,nchar(rownames(out$mDelta))-2),rep(iM-1,P_high)),rep(colnames(out$mDelta),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),"|")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
-    
-    # Add mQ
-    out$mQ            = output$mQ
-    rownames(out$mQ)  = colnames(out$mV2) = rownames(out$mV2)
-    
-    # Add uncorrected variance-covariance matrix
-    out$Varmat_unc            = output$Varmat[1:(P_high*(iM-1)+P*(iT-1)*iM),1:(P_high*(iM-1)+P*(iT-1)*iM)]
-    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
-    
-    # Add corrected variance-covariance matrix
-    out$Varmat_cor            = output$mVar_corr
-    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$Varmat_unc)
-    
-    # Add vector of uncorrected standard errors
-    out$SEs_unc           = as.matrix(output$SEs_unc[1:(P_high*(iM-1)+P*(iT-1)*iM),])
-    rownames(out$SEs_unc) = rownames(out$mV2)
-    colnames(out$SEs_unc) = ""
-    
-    # Add vector of corrected standard errors
-    out$SEs_cor           = as.matrix(output$SEs_cor[1:(P_high*(iM-1)+P*(iT-1)*iM),])
-    rownames(out$SEs_cor) = rownames(out$mV2)
-    colnames(out$SEs_cor) = ""
-    
-    # Add corrected standard errors for delta
-    out$SEs_cor_delta = t(matrix(output$SEs_cor[1:(P_high*(iM-1))],iM-1,P_high))
-    rownames(out$SEs_cor_delta) = rownames(out$mDelta)
-    colnames(out$SEs_cor_delta) = colnames(out$mDelta)
-    
-    # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
-    
-    # Add epsilon
-    out$eps = output$eps
     
     # Add cube of joint posterior class membership probabilities
     out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL,paste0("C",1:iT,",G"), paste0("G", 1:iM)))
@@ -2069,9 +2237,6 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     # Add high-level entropy R-sqr
     out$R2entr_high = output$R2entr_high
     
-    # Add Akaike information criterion
-    out$AIC = output$AIC
-    
     # Add low-level Bayesian information criterion
     out$BIClow = output$BIClow
     
@@ -2084,8 +2249,76 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     # Add high-level integrated completed likelihood Bayesian information criterion
     out$ICL_BIChigh = output$ICL_BIChigh
     
+    # Add Akaike information criterion
+    out$AIC = output$AIC
+    
+    # Add alphas
+    out$mAlpha            = t(output$mDelta)
+    rownames(out$mAlpha)  = paste0("alpha(",Zh,"|G)")
+    colnames(out$mAlpha)  = paste0("G",2:iM)
+    
+    # Add gammas
+    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    
+    # Add betas
+    out$mBeta           = output$mBeta
+    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    colnames(out$mBeta) = colnames(out$mPhi)
+    
+    # Add vector of model parameters
+    out$parvec            = output$parvec
+    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    colnames(out$parvec)  = ""
+    
+    # Add vector of uncorrected standard errors
+    out$SEs_unc           = as.matrix(output$SEs_unc[1:(P_high*(iM-1)+P*(iT-1)*iM),])
+    rownames(out$SEs_unc) = rownames(out$mV2)
+    colnames(out$SEs_unc) = ""
+    
+    # Add vector of corrected standard errors
+    out$SEs_cor           = as.matrix(output$SEs_cor[1:(P_high*(iM-1)+P*(iT-1)*iM),])
+    rownames(out$SEs_cor) = rownames(out$mV2)
+    colnames(out$SEs_cor) = ""
+    
+    # Add corrected standard errors for alpha
+    out$SEs_cor_alpha = t(matrix(output$SEs_cor[1:(P_high*(iM-1))],iM-1,P_high))
+    rownames(out$SEs_cor_alpha) = rownames(out$mAlpha)
+    colnames(out$SEs_cor_alpha) = colnames(out$mAlpha)
+    
+    # Add corrected standard errors for gamma
+    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    
+    # Add mQ
+    out$mQ            = output$mQ
+    rownames(out$mQ)  = colnames(out$mV2) = rownames(out$mV2)
+    
+    # Add uncorrected variance-covariance matrix
+    out$Varmat_unc            = output$Varmat[1:(P_high*(iM-1)+P*(iT-1)*iM),1:(P_high*(iM-1)+P*(iT-1)*iM)]
+    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
+    
+    # Add corrected variance-covariance matrix
+    out$Varmat_cor            = output$mVar_corr
+    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$Varmat_unc)
+    
+    # Add Fisher information matrix
+    out$Infomat           = output$Infomat
+    rownames(out$Infomat) = colnames(out$Infomat) = rownames(out$parvec)
+    
+    # Add cube of Fisher information matrix for alpha
+    out$cAlpha_Info = array(output$cDelta_Info, dim(output$cDelta_Info), dimnames=list(paste0("alpha(",Zh,"|G)"),paste0("alpha(",Zh,"|G)"),colnames(out$mAlpha)))
+    
+    # Add cube of Fisher information matrix for gamma
+    out$cGamma_Info = array(output$cGamma_Info, dim(output$cGamma_Info), dimnames=list(paste0("gamma(",Z,"|C,G)"),paste0("gamma(",Z,"|C,G)"),paste0("C",2:iT,rep(paste0(",G",1:iM),rep(iT-1,iM)))))
+    
+    # Add inverse of the information matrix from the second step
+    out$mV2           = output$mV2
+    rownames(out$mV2) = colnames(out$mV2) = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
+    
     # Add number of iterations
     out$iter = output$iter
+    
+    # Add epsilon
+    out$eps = output$eps
     
     # Add log-likelihood series
     out$LLKSeries = output$LLKSeries
@@ -2099,14 +2332,14 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     out$mScore            = output$mScore
     colnames(out$mScore)  = rownames(out$parvec)
     
-    # Add subset of matrix of model parameter contributions to log-likelihood score for delta
-    out$mDelta_Score            = output$mDelta_Score
-    rownames(out$mDelta_Score)  = id_high_levs
-    colnames(out$mDelta_Score)  = paste0(rep(substr(rownames(out$mDelta),1,nchar(rownames(out$mDelta))-2),rep(iM-1,P_high)),rep(colnames(out$mDelta),P_high),")")
+    # Add subset of matrix of model parameter contributions to log-likelihood score for alpha
+    out$mAlpha_Score            = output$mDelta_Score
+    rownames(out$mAlpha_Score)  = id_high_levs
+    colnames(out$mAlpha_Score)  = paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")")
     
     # Add subset of matrix of model parameter contributions to log-likelihood score for gamma
     out$mGamma_Score            = output$mGamma_Score
-    colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),"|")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
+    colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
     
     # Add specification
     out$spec            = as.matrix("Multilevel LC model with low- and high-level covariates")
@@ -2175,7 +2408,28 @@ update_YmY = function(mY,Y,ivItemcat){
   return(list(mY=mY,Y=Y))
 }
 #
-check_inputs = function(data,Y,iT,id_high,iM,Z,Zh){
+update_YmY_nonnum = function(mY,Y,ivItemcat){
+  itemnam = lapply(data.frame(mY),function(x){levels(factor(x))})
+  mY      = apply(mY,2,function(x){as.numeric(factor(x))-1})
+  Y_upd   = c()
+  for(i in Y){
+    if(ivItemcat[i]>2){
+      mY_upd            = vecTomatClass(mY[,i]+1)
+      colnames(mY_upd)  = paste0(i,".",itemnam[[i]])
+      Y_upd             = c(Y_upd,colnames(mY_upd))
+    } else{
+      mY_upd  = mY[,i,drop=FALSE]
+      Y_upd   = c(Y_upd,paste0(i,".",itemnam[[i]][2]))
+    }
+    mY = mY[,-which(colnames(mY)==i)]
+    mY = cbind(mY,mY_upd)
+  }
+  Y             = Y_upd
+  colnames(mY)  = Y
+  return(list(mY=mY,Y=Y))
+}
+#
+check_inputs1 = function(data,Y,iT,id_high,iM,Z,Zh){
   
   # <data> is matrix or dataframe
   if(!(is.matrix(data)|is.data.frame(data))){
@@ -2210,6 +2464,10 @@ check_inputs = function(data,Y,iT,id_high,iM,Z,Zh){
     
   }
   
+}
+#
+check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
+  
   # Single <id_high>
   if(!is.null(id_high)){
     
@@ -2237,6 +2495,10 @@ check_inputs = function(data,Y,iT,id_high,iM,Z,Zh){
       } else if(iT!=round(iT)){
         
         stop("Invalid iT.",call.=FALSE)
+        
+      } else if(iT==1){
+        
+        stop("Invalid iT: not a mixture model.",call.=FALSE)
         
       } else if(iT<1){
         
@@ -2331,10 +2593,10 @@ check_inputs = function(data,Y,iT,id_high,iM,Z,Zh){
     
   }
   
-  # <Y> consecutive integers from 0
-  if(any(unlist(apply(data[,Y],2,function(x){sort(unique(x))!=0:(length(unique(x))-1)})))){
+  # <Y> consecutive integers from 0 or be non-numeric character
+  if(any(sapply(as.data.frame(data[,Y]),function(x){(any(sort(unique(x))!=0:(length(unique(x))-1)))&!is.character(x)}))){
     
-    stop("Items must contain consecutive integers from 0.",call.=FALSE)
+    stop("Items must contain consecutive integers from 0 or be non-numeric character.",call.=FALSE)
     
   }
   
@@ -2357,7 +2619,7 @@ check_inputs = function(data,Y,iT,id_high,iM,Z,Zh){
   }
   
   # No duplicate <Y>, <Z> or >Zh>
-  if(any(duplicated(as.list(data[,Y])))){
+  if(any(duplicated(as.list(as.data.frame(data[,Y]))))){
     
     stop("Duplicate items.",call.=FALSE)
     
@@ -2389,10 +2651,15 @@ check_inputs = function(data,Y,iT,id_high,iM,Z,Zh){
     
   }
   
-  # No constant <Z> or <Zh>
+  # No constant <Y>, <Z> or <Zh>
+  if(any(apply(data[,Y],2,function(x){length(unique(x))==1}))){
+    
+    stop("Constant in indicators.",call.=FALSE)
+    
+  }
   if(!is.null(Z)){
     
-    if(any(!apply(data[,Y],2,function(x){length(unique(x))>1}))){
+    if(any(apply(data[,Z,drop=FALSE],2,function(x){length(unique(x))==1}))){
       
       stop("Constant in low-level covariates.",call.=FALSE)
       
@@ -2401,7 +2668,7 @@ check_inputs = function(data,Y,iT,id_high,iM,Z,Zh){
   }
   if(!is.null(Zh)){
     
-    if(any(!apply(data[,Y],2,function(x){length(unique(x))>1}))){
+    if(any(apply(data[,Zh,drop=FALSE],2,function(x){length(unique(x))==1}))){
       
       stop("Constant in high-level covariates.",call.=FALSE)
       
@@ -2518,14 +2785,14 @@ print.multiLCA = function(x,...){
     print(iter)
     cat("\n---------------------------\n")
     cat("\nCLASS PROPORTIONS:\n")
-    print(round(x$vPg, 4))
+    print(round(x$vPi, 4))
     cat("\nRESPONSE PROBABILITIES:\n\n")
     print(round(x$mPhi, 4))
     cat("\n---------------------------\n")
     cat("\nMODEL AND CLASSIFICATION STATISTICS:\n")
     
-    stat            = as.matrix(c(as.character(round(x$AIC, 4)), as.character(round(x$BIC, 4)), as.character(round(x$AvgClassErrProb, 4)), as.character(round(x$R2entr, 4))))
-    rownames(stat)  = c("AIC", "BIC", "ClassErr", "EntR-sqr")
+    stat            = as.matrix(c(as.character(round(x$AvgClassErrProb, 4)), as.character(round(x$R2entr, 4)), as.character(round(x$BIC, 4)), as.character(round(x$AIC, 4))))
+    rownames(stat)  = c("ClassErr", "EntR-sqr", "BIC", "AIC")
     colnames(stat)  = ""
     
     print(noquote(stat), right = TRUE)
@@ -2550,14 +2817,14 @@ print.multiLCA = function(x,...){
     print(iter)
     cat("\n---------------------------\n")
     cat("\nCLASS PROPORTIONS (SAMPLE MEAN):\n")
-    print(round(x$vPg_avg, 4))
+    print(round(x$vPi_avg, 4))
     cat("\nRESPONSE PROBABILITIES:\n\n")
     print(round(x$mPhi, 4))
     cat("\n---------------------------\n")
     cat("\nMODEL AND CLASSIFICATION STATISTICS:\n")
     
-    stat             = as.matrix(c(as.character(round(x$AIC, 4)), as.character(round(x$BIC, 4)), as.character(round(x$AvgClassErrProb, 4)), as.character(round(x$R2entr, 4))))
-    rownames(stat)   = c("AIC", "BIC", "ClassErr", "EntR-sqr")
+    stat             = as.matrix(c(as.character(round(x$AvgClassErrProb, 4)), as.character(round(x$R2entr, 4)), as.character(round(x$BIC, 4)), as.character(round(x$AIC, 4))))
+    rownames(stat)   = c("ClassErr", "EntR-sqr", "BIC", "AIC")
     colnames(stat)   = ""
     
     print(noquote(stat), right = TRUE)
@@ -2566,21 +2833,21 @@ print.multiLCA = function(x,...){
     cat("\n---------------------------\n")
     cat("\nLOGISTIC MODEL FOR CLASS MEMBERSHIP:\n\n")
     
-    betas   = format(round(as.matrix(x$betas), 4), nsmall = 4)
-    SE      = format(round(as.matrix(x$SEs_cor_beta), 4), nsmall = 4)
-    Zscore  = format(round(as.matrix(x$betas)/as.matrix(x$SEs_cor_beta), 4), nsmall = 4)
-    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$betas)/as.matrix(x$SEs_cor_beta)))), 4), nsmall = 4)
-    psignf  = matrix("   ", nrow(betas), ncol(betas))
+    gammas  = format(round(as.matrix(x$cGamma), 4), nsmall = 4)
+    SE      = format(round(as.matrix(x$SEs_cor_gamma), 4), nsmall = 4)
+    Zscore  = format(round(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma), 4), nsmall = 4)
+    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma)))), 4), nsmall = 4)
+    psignf  = matrix("   ", nrow(gammas), ncol(gammas))
     psignf[pval < 0.1 & pval >= 0.05]   = "*  "
     psignf[pval < 0.05 & pval >= 0.01]  = "** "
     psignf[pval < 0.01]                 = "***"
     
-    for (i in 1:ncol(betas)){
+    for (i in 1:ncol(gammas)){
       
       C = paste0("C", 1 + i)
-      logit_params = noquote(cbind(betas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
+      logit_params = noquote(cbind(gammas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
       colnames(logit_params) = c("Beta", "S.E.", "Z-score", "p-value")
-      rownames(logit_params) = paste0(substr(rownames(as.matrix(x$betas)), 1, nchar(rownames(as.matrix(x$betas))) - 1), 1 + i, ")")
+      rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma)), 1, nchar(rownames(as.matrix(x$cGamma))) - 1), 1 + i, ")")
       
       cat("\nMODEL FOR", C, "(BASE C1)\n\n")
       print(logit_params, right = TRUE)
@@ -2616,8 +2883,8 @@ print.multiLCA = function(x,...){
     cat("\n---------------------------\n")
     cat("\nMODEL AND CLASSIFICATION STATISTICS:\n")
     
-    stat = as.matrix(c(as.character(round(x$AIC, 4)), as.character(round(x$BIClow, 4)), as.character(round(x$BIChigh, 4)), as.character(round(x$ICL_BIClow, 4)), as.character(round(x$ICL_BIChigh, 4)), as.character(round(x$R2entr_low, 4)), as.character(round(x$R2entr_high, 4))))
-    rownames(stat) = c("AIC", "BIClow", "BIChigh", "ICLBIClow", "ICLBIChigh", "R2entrlow", "R2entrhigh")
+    stat = as.matrix(c(as.character(round(x$R2entr_low, 4)), as.character(round(x$R2entr_high, 4)), as.character(round(x$BIClow, 4)), as.character(round(x$BIChigh, 4)), as.character(round(x$ICL_BIClow, 4)), as.character(round(x$ICL_BIChigh, 4)), as.character(round(x$AIC, 4))))
+    rownames(stat) = c("R2entrlow", "R2entrhigh", "BIClow", "BIChigh", "ICLBIClow", "ICLBIChigh", "AIC")
     colnames(stat) = ""
     
     print(noquote(stat), right = TRUE)
@@ -2649,8 +2916,8 @@ print.multiLCA = function(x,...){
     cat("\n---------------------------\n")
     cat("\nMODEL AND CLASSIFICATION STATISTICS:\n")
     
-    stat = as.matrix(c(as.character(round(x$AIC, 4)), as.character(round(x$BIClow, 4)), as.character(round(x$BIChigh, 4)), as.character(round(x$ICL_BIClow, 4)), as.character(round(x$ICL_BIChigh, 4)), as.character(round(x$R2entr_low, 4)), as.character(round(x$R2entr_high, 4))))
-    rownames(stat) = c("AIC", "BIClow", "BIChigh", "ICLBIClow", "ICLBIChigh", "R2entrlow", "R2entrhigh")
+    stat = as.matrix(c(as.character(round(x$R2entr_low, 4)), as.character(round(x$R2entr_high, 4)), as.character(round(x$BIClow, 4)), as.character(round(x$BIChigh, 4)), as.character(round(x$ICL_BIClow, 4)), as.character(round(x$ICL_BIChigh, 4)), as.character(round(x$AIC, 4))))
+    rownames(stat) = c("R2entrlow", "R2entrhigh", "BIClow", "BIChigh", "ICLBIClow", "ICLBIChigh", "AIC")
     colnames(stat) = ""
     
     print(noquote(stat), right = TRUE)
@@ -2676,7 +2943,7 @@ print.multiLCA = function(x,...){
         C = paste0("C", 1 + j)
         logit_params = noquote(cbind(gammas[,j], SE[,j], Zscore[,j], matrix(paste0(pval[,j], psignf[,j]))))
         colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
-        rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, "|G", i, ")")
+        rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, ",G", i, ")")
         
         cat("\nMODEL FOR", C, "(BASE C1) GIVEN", G, "\n\n")
         print(logit_params, right = TRUE)
@@ -2715,8 +2982,8 @@ print.multiLCA = function(x,...){
     cat("\n---------------------------\n")
     cat("\nMODEL AND CLASSIFICATION STATISTICS:\n")
     
-    stat = as.matrix(c(as.character(round(x$AIC, 4)), as.character(round(x$BIClow, 4)), as.character(round(x$BIChigh, 4)), as.character(round(x$ICL_BIClow, 4)), as.character(round(x$ICL_BIChigh, 4)), as.character(round(x$R2entr_low, 4)), as.character(round(x$R2entr_high, 4))))
-    rownames(stat) = c("AIC", "BIClow", "BIChigh", "ICLBIClow", "ICLBIChigh", "R2entrlow", "R2entrhigh")
+    stat = as.matrix(c(as.character(round(x$R2entr_low, 4)), as.character(round(x$R2entr_high, 4)), as.character(round(x$BIClow, 4)), as.character(round(x$BIChigh, 4)), as.character(round(x$ICL_BIClow, 4)), as.character(round(x$ICL_BIChigh, 4)), as.character(round(x$AIC, 4))))
+    rownames(stat) = c("R2entrlow", "R2entrhigh", "BIClow", "BIChigh", "ICLBIClow", "ICLBIChigh", "AIC")
     colnames(stat) = ""
     
     print(noquote(stat), right = TRUE)
@@ -2725,21 +2992,21 @@ print.multiLCA = function(x,...){
     cat("\n---------------------------\n")
     cat("\nLOGISTIC MODEL FOR HIGH-LEVEL CLASS MEMBERSHIP:\n\n")
     
-    deltas  = format(round(as.matrix(x$mDelta), 4), nsmall = 4)
-    SE      = format(round(as.matrix(x$SEs_cor_delta), 4), nsmall = 4)
-    Zscore  = format(round(as.matrix(x$mDelta)/as.matrix(x$SEs_cor_delta), 4), nsmall = 4)
-    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$mDelta)/as.matrix(x$SEs_cor_delta)))), 4), nsmall = 4)
-    psignf  = matrix("   ", nrow(deltas), ncol(deltas))
+    alphas  = format(round(as.matrix(x$mAlpha), 4), nsmall = 4)
+    SE      = format(round(as.matrix(x$SEs_cor_alpha), 4), nsmall = 4)
+    Zscore  = format(round(as.matrix(x$mAlpha)/as.matrix(x$SEs_cor_alpha), 4), nsmall = 4)
+    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$mAlpha)/as.matrix(x$SEs_cor_alpha)))), 4), nsmall = 4)
+    psignf  = matrix("   ", nrow(alphas), ncol(alphas))
     psignf[pval < 0.1 & pval >= 0.05]   = "*  "
     psignf[pval < 0.05 & pval >= 0.01]  = "** "
     psignf[pval < 0.01]                 = "***"
     
-    for (i in 1:ncol(deltas)){
+    for (i in 1:ncol(alphas)){
       
       G = paste0("G", 1 + i)
-      logit_params = noquote(cbind(deltas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
-      colnames(logit_params) = c("Delta", "S.E.", "Z-score", "p-value")
-      rownames(logit_params) = paste0(substr(rownames(as.matrix(x$mDelta)), 1, nchar(rownames(as.matrix(x$mDelta))) - 1), 1 + i, ")")
+      logit_params = noquote(cbind(alphas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
+      colnames(logit_params) = c("Alpha", "S.E.", "Z-score", "p-value")
+      rownames(logit_params) = paste0(substr(rownames(as.matrix(x$mAlpha)), 1, nchar(rownames(as.matrix(x$mAlpha))) - 1), 1 + i, ")")
       
       cat("\nMODEL FOR", G, "(BASE G1)\n\n")
       print(logit_params, right = TRUE)
@@ -2769,7 +3036,7 @@ print.multiLCA = function(x,...){
         C = paste0("C", 1 + j)
         logit_params = noquote(cbind(gammas[,j], SE[,j], Zscore[,j], matrix(paste0(pval[,j], psignf[,j]))))
         colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
-        rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, "|G", i, ")")
+        rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, ",G", i, ")")
         
         cat("\nMODEL FOR", C, "(BASE C1) GIVEN", G, "\n\n")
         print(logit_params, right = TRUE)

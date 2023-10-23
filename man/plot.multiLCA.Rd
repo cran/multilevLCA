@@ -5,9 +5,9 @@
 Plots conditional response probabilities
 }
 \description{
-Visualises conditional response probabilities estimated by the \code{\link{multiLCA}} function. The method works for both single- and multilevel models.
+Visualizes conditional response probabilities estimated by the \code{\link{multiLCA}} function. The method works for both single- and multilevel models.
 
-Let \code{out} denote the list object returned by the \code{\link{multiLCA}} function. Then, executing \code{plot(out)} visualises the conditional response probabilities given by the \code{mPhi} matrix in \code{out}.
+Let \code{out} denote the list object returned by the \code{\link{multiLCA}} function. Executing \code{plot(out)} visualizes the conditional response probabilities given by the \code{mPhi} matrix in \code{out}.
 }
 \usage{
 \method{plot}{multiLCA}(x, horiz = TRUE, clab = NULL, \dots)

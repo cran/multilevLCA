@@ -6,7 +6,338 @@ using namespace arma;
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec vNj, arma::mat mDelta_start, arma::cube cGamma_start, arma::mat mPhi_start, arma::mat mStep1Var, arma::ivec ivItemcat, int maxIter = 1e3, double tol = 1e-8, int fixedpars = 0, double NRtol = 1e-6, int NRmaxit = 100){
+List MLTLCA_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, int maxIter = 1e3, double tol = 1e-8, int reord = 1){
+  // mY is iJ*sum(nj) x K
+  // mDesign has the same dimentions as mY. The its (i,h)-element is == 1 if the
+  // corresponding entry in mY is available, ==0 if this is missing (NA)
+  // 
+  // NO IMPUTATION IS PERFORMED! If one row has only NA, this should be excluded
+  // before running this function
+  // 
+  // Missings should be coded with a numeric entry -- like 99 or 999
+  // iN = iJ*sum(nj)
+  // iK is the number of items
+  // iT is the number of individual classes
+  // iM is the number of group classes
+  // vGrId is the vector of group id's (should start from zero)
+  // mPhi is iK x iT
+  // vW is iM x 1
+  // mPi is iT x iM
+  
+  int n,j,k,m,t;
+  int isize = 1;
+  double size = 1.0;
+  int iN = mY.n_rows;
+  int iK = mY.n_cols;
+  int iJ = vNj.n_elem;
+  int iP = 1;
+  
+  int iT = mPi.n_rows;
+  int iM = mPi.n_cols;
+  arma::mat mPW      = zeros(iJ,iM);
+  arma::mat mPW_N    = zeros(iN,iM);
+  arma::cube cPX     = zeros(iN,iT,iM);
+  arma::cube cPMX    = cPX;
+  arma::mat mSumPX = zeros(iN,iM);
+  arma::mat mPMsumX  = zeros(iN,iT);
+  arma::mat mlogPW   = mPW;
+  arma::mat mlogPW_sc = mlogPW;
+  arma::cube clogPX  = cPX;
+  arma::cube clogPMX = cPMX;
+  arma::cube cLogdY = zeros(iN,iT,iK);
+  arma::mat mLogdKY = zeros(iN,iT);
+  arma::mat mLogPi = log(mPi);
+  arma::vec vLogOmega = log(vOmega);
+  arma::mat mPi_Next = mPi;
+  arma::vec vOmega_Next = vOmega;
+  arma::mat mPhi_Next = mPhi;
+  arma::vec vLLK = zeros(iJ,1);
+  arma::vec LLKSeries(maxIter);
+  double eps = 1.0;
+  double iter = 0.0;
+  double foo = 0.0;
+  double foomax = 0.0;
+  double dLK =0.0;
+  arma::vec foovec = zeros(iN,1);
+  
+  while(eps > tol && iter<maxIter){
+    // compute log-densities
+    mLogdKY.zeros();
+    for(n = 0; n < iN; n++){
+      for(t = 0; t < iT; t++){
+        for(k = 0; k < iK; k++){
+          if(mDesign(n,k)==1){
+            cLogdY(n,t,k) = Rf_dbinom(mY(n,k), size, mPhi(k,t), isize);
+            mLogdKY(n,t) +=cLogdY(n,t,k);
+          }
+        }
+      }
+    }
+    // 
+    // E step
+    // (working with log-probabilities to avoid numerical over/underflow)
+    for(n = 0; n < iN; n++){
+      for(m = 0; m < iM; m++){
+        for(t = 0; t < iT; t++){
+          clogPX(n,t,m) = mLogPi(t,m) + mLogdKY(n,t);
+        }
+        mSumPX(n,m) = MixtDensityScale(mPi.col(m),mLogdKY.row(n).t(), iT);
+        for(t = 0; t < iT; t++){
+          clogPX(n,t,m) = clogPX(n,t,m) - mSumPX(n,m);
+          cPX(n,t,m) = exp(clogPX(n,t,m));
+        }
+      }
+    }
+    foo = 0.0;
+    for(j = 0; j < iJ; j++){
+      dLK =0.0;
+      for(m = 0; m < iM; m++){
+        mlogPW(j,m) = vLogOmega(m) + accu(mSumPX.col(m).subvec(foo, foo + vNj[j] -1));
+      }
+      foomax = max(mlogPW.row(j));
+      mlogPW_sc.row(j) = mlogPW.row(j) - foomax;
+      
+      for (m = 0; m < iM; m++) {
+        dLK += exp(mlogPW_sc(j,m));
+      }
+      vLLK(j) = foomax + log(dLK);
+      
+      mlogPW.row(j) = mlogPW.row(j) - vLLK(j);
+      mPW.row(j) = exp(mlogPW.row(j));
+      for(m = 0; m <iM; m++){
+        for(t = 0; t < iT; t++){
+          clogPMX.slice(m).col(t).subvec(foo,foo + vNj[j]-1) = mlogPW(j,m) + clogPX.slice(m).col(t).subvec(foo,foo + vNj[j]-1); 
+        }
+        mPW_N.col(m).subvec(foo,foo + vNj[j]-1).fill(mPW(j,m)); 
+      }
+      foo = foo + vNj[j];
+    }
+    cPMX = exp(clogPMX);
+    // 
+    // M step
+    //
+    mPhi_Next.zeros();
+    mPi_Next = sum(cPMX,0);
+    vOmega_Next = sum(mPW,0).t();
+    vOmega_Next = vOmega_Next/accu(vOmega_Next);
+    for(m = 0; m < iM; m++){
+      mPi_Next.col(m) = mPi_Next.col(m)/accu(mPi_Next.col(m)); 
+    }
+    
+    // mPhi_Next.zeros();
+    // for(k = 0; k < iK; k++){
+    //   for(t = 0; t < iT; t++){
+    //     foo = 0.0;
+    //     foovec.zeros();
+    //     for(m = 0; m < iM; m++){
+    //       foo += accu(cPMX.slice(m).col(t));
+    //       foovec = foovec + cPMX.slice(m).col(t);
+    //       mPhi_Next(k,t) += accu(cPMX.slice(m).col(t)%mY.col(k));
+    //     }
+    //     mPhi_Next(k,t) = probcheck(mPhi_Next(k,t)/foo);
+    //     mPMsumX.col(t) = foovec;
+    //   }
+    // }
+    
+    mPMsumX = sum(cPMX,2);
+    for(t = 0; t < iT; t++){
+      for(k = 0; k < iK; k++){
+        mPhi_Next(k,t) = accu(mPMsumX.col(t)%mY.col(k)%mDesign.col(k))/accu(mPMsumX.col(t)%mDesign.col(k));
+        mPhi_Next(k,t) = probcheck(mPhi_Next(k,t));
+      }
+    }
+    
+    
+    LLKSeries(iter) = accu(vLLK);
+    if(iter > 10){
+      eps = abs3(LLKSeries(iter) - LLKSeries(iter-1));
+    }
+    iter +=1;
+    
+    // Update parameters
+    
+    mPhi      = mPhi_Next;
+    mPi       = mPi_Next;
+    vOmega    = vOmega_Next;
+    mLogPi    = log(mPi);
+    vLogOmega = log(vOmega);
+    
+  }
+  LLKSeries = LLKSeries.subvec(0, iter - 1);
+  if(reord == 1){
+    arma::vec vPhisum = sum(mPhi).t();
+    arma::uvec low_order = sort_index(vPhisum,"descending");
+    arma::uvec high_order = sort_index(vOmega,"descending");
+    int ifoo = 0;
+    int ifoo_high = 0;
+    arma::vec vOmega_sorted = vOmega;
+    arma::mat mPhi_sorted = mPhi;
+    arma::mat mPi_sorted = mPi;
+    arma::mat mPW_sorted = mPW;
+    arma::mat mPW_N_sorted = mPW_N;
+    arma::cube cPX_sorted = cPX;
+    arma::cube cPMX_sorted = cPMX;
+    arma::cube clogPX_sorted = cPX;
+    arma::cube clogPMX_sorted = cPMX;
+    arma::mat mSumPX_sorted = mSumPX;
+    arma::mat mPMsumX_sorted = mPMsumX;
+    arma::cube cLogdY_sorted = cLogdY;
+    arma::mat mLogdKY_sorted = mLogdKY;
+    for(t=0; t< iT; t++){
+      ifoo               = low_order(t);
+      mPhi_sorted.col(t) = mPhi.col(ifoo);
+      mPi_sorted.row(t)  = mPi.row(ifoo);
+      cPX_sorted.col(t)  = cPX_sorted.col(ifoo);
+      clogPX_sorted.col(t)  = clogPX_sorted.col(ifoo);
+      cPMX_sorted.col(t)  = cPMX_sorted.col(ifoo);
+      clogPMX_sorted.col(t)  = clogPMX_sorted.col(ifoo);
+      mPMsumX_sorted.col(t)  = mPMsumX_sorted.col(ifoo);
+      mLogdKY_sorted.col(t)  = mLogdKY_sorted.col(ifoo);
+    }
+    for(m = 0; m < iM; m++){
+      ifoo_high = high_order(m);
+      mPi_sorted.col(m)  = mPi.col(ifoo_high);
+      cPX_sorted.slice(m)  = cPX_sorted.slice(ifoo_high);
+      clogPX_sorted.slice(m)  = clogPX_sorted.slice(ifoo_high);
+      cPMX_sorted.slice(m)  = cPMX_sorted.slice(ifoo_high);
+      clogPMX_sorted.slice(m)  = clogPMX_sorted.slice(ifoo_high);
+      mSumPX_sorted.col(m)  = mSumPX_sorted.col(ifoo_high);
+    }
+    mPhi = mPhi_sorted;
+    mPi = mPi_sorted;
+    cPX = cPX_sorted;
+    clogPX = clogPX_sorted;
+    cPMX = cPMX_sorted;
+    clogPMX = clogPMX_sorted;
+    mPMsumX = mPMsumX_sorted;
+    mLogdKY = mLogdKY_sorted;
+    mSumPX = mSumPX_sorted;
+  }
+  
+  
+  
+  double BIClow;
+  double BIChigh;
+  double AIC;
+  BIClow = -2.0*LLKSeries(iter-1) + log(iN)*(iK*iT + (iT - 1.0)*iM + (iM - 1.0));
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(iK*iT + (iT - 1.0)*iM + (iM - 1.0));
+  AIC = -2.0*LLKSeries(iter-1) + 2*(iK*iT + (iT - 1.0)*iM + (iM - 1.0));
+  
+  // computing log-linear parameters
+  arma::vec vDeltafoo(iM);
+  vDeltafoo = log(vOmega/vOmega(0));
+  arma::vec vDelta = vDeltafoo.subvec(1,iM-1);
+  arma::mat mGammafoo(iT,iM);
+  arma::mat mGamma(iT-1,iM);
+  for(m=0; m < iM; m++){
+    mGammafoo.col(m) = log(mPi.col(m)/mPi(0,m));
+    mGamma.col(m) = mGammafoo.col(m).subvec(1,iT-1);
+  }
+  // 
+  double Terr_high = iJ*accu(-vOmega%log(vOmega));
+  mlogPW.elem( find_nonfinite(mlogPW) ).zeros();
+  double Perr_high = accu(-mPW%mlogPW);
+  double R2entr_high = 1.0-(Perr_high/Terr_high);
+  
+  arma::mat mPXmarg = sum(cPMX,2);
+  for(n = 0; n< iN; n++){
+    mPXmarg.row(n) = mPXmarg.row(n)/accu(mPXmarg.row(n));
+  }
+  arma::vec vPimarg = mean(mPXmarg).t();
+  double Terr_low = iN*accu(-vPimarg%log(vPimarg));
+  arma::mat mlogPXmarg = log(mPXmarg);
+  mlogPXmarg.elem(find_nonfinite(mlogPXmarg) ).zeros();
+  double Perr_low = accu(-mPXmarg%mlogPXmarg);
+  double R2entr_low = (Terr_low - Perr_low)/Terr_low;
+  
+  
+  double ICL_BIClow;
+  double ICL_BIChigh;
+  ICL_BIClow = BIClow + 2.0*Perr_low;
+  ICL_BIChigh = BIChigh + 2.0*Perr_high;
+  
+  arma::mat mBeta = log(mPhi/(1.0 - mPhi));
+  
+  arma::vec parvec = join_cols(join_cols(vDelta,vectorise(mGamma)),vectorise(mBeta));
+  
+  // Computing the score
+  
+  arma::mat mOmega_Score(iN,iM-1);
+  for(m =1; m< iM; m++){
+    mOmega_Score.col(m-1) = mPW_N.col(m)*(1.0 - vOmega(m));
+  }
+  arma::mat mGamma_Score(iN,(iT-1)*iP*iM);
+  int iFoo2 = 0;
+  arma::mat mGammaScore_foo = zeros(iN,(iT-1)*iP);
+  for(m = 0; m < iM; m++){
+    mGammaScore_foo.fill(0.0);
+    for(t = 1; t < iT; t++){
+      mGammaScore_foo.col(t-1) = (cPX.slice(m).col(t) - mPi(t,m))%(mPW_N.col(m));
+    }
+    
+    mGamma_Score.cols(iFoo2, iFoo2 + ((iT-1)*iP) -1) = mGammaScore_foo;
+    iFoo2 = iFoo2 + ((iT-1)*iP);
+  }
+  iFoo2 = 0;
+  
+  arma::mat mBeta_Score=zeros(iN,iK*iT);
+  int iroll = 0;
+  for(t = 0; t < iT; t++){
+    for(k = 0; k < iK; k++){
+      for(m = 0; m < iM; m++){
+        mBeta_Score.col(iroll) += cPMX.slice(m).col(t)%(mY.col(k) - mPhi(k,t));
+      }
+      iroll += 1;
+    }
+  }
+  
+  arma::mat mScore = join_rows(join_rows(mOmega_Score,mGamma_Score),mBeta_Score);
+  arma::mat Infomat = mScore.t()*mScore/iN;
+  arma::mat Varmat = pinv(Infomat)/iN;
+  arma::vec SEs =  sqrt(Varmat.diag());
+  
+  List EMout;
+  EMout["mScore"]    = mScore;
+  EMout["Infomat"]    = Infomat;
+  EMout["Varmat"]    = Varmat;
+  EMout["SEs"]    = SEs;
+  EMout["mPhi"]      = mPhi;
+  EMout["mPi"]       = mPi;
+  EMout["vOmega"]    = vOmega;
+  EMout["cPMX"]      = cPMX;
+  EMout["cLogPMX"]   = clogPMX;
+  EMout["mPXmarg"]   = mPXmarg;
+  EMout["cPX"]       = cPX;
+  EMout["cLogPX"]    = clogPX;
+  EMout["mSumPX"]    = mSumPX;
+  EMout["mPW"]       = mPW;
+  EMout["mPW_N"]     = mPW_N;
+  EMout["mlogPW"]    = mlogPW;
+  EMout["mPMsumX"]   = mPMsumX;
+  EMout["vDelta"] = vDelta;
+  EMout["mGamma"] = mGamma;
+  EMout["mBeta"]  = mBeta;
+  EMout["parvec"] = parvec;
+  EMout["LLKSeries"] = LLKSeries;
+  EMout["vLLK"]      = vLLK;
+  EMout["eps"]       = eps;
+  EMout["iter"]      = iter;
+  EMout["BIClow"]       = BIClow;
+  EMout["BIChigh"]       = BIChigh;
+  EMout["AIC"]       = AIC;
+  EMout["ICL_BIClow"]    = ICL_BIClow;
+  EMout["ICL_BIChigh"]    = ICL_BIChigh;
+  EMout["R2entr_high"]       = R2entr_high;
+  EMout["R2entr_low"]       = R2entr_low;
+  
+  return EMout;
+}
+
+
+
+
+// [[Rcpp::export]]
+List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec vNj, arma::mat mDelta_start, arma::cube cGamma_start, arma::mat mPhi_start, arma::mat mStep1Var, arma::ivec ivItemcat, int maxIter = 1e3, double tol = 1e-8, int fixedpars = 0, int nsteps = 1, double NRtol = 1e-6, int NRmaxit = 100){
   // mY is iJ*sum(nj) x K
   // mZ is iJ*sum(nj) x iP, where iP is the number of iP-1 covariates (can even be 1) + an intercept term
   // mZh is iJ x iPh, where iPh is the number of iP-1 covariates + an intercept term
@@ -25,10 +356,10 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   // ivItemcat is the vector of number of categories for each item
   // fixedpars = 0 for one-step estimator
   // fixedpars = 1 for "pure" two-step (mPhi fixed, estimated using LCAfit or MLTLCA)
-  // fixedpars = 2 for three-step (fixing vOmega and mPhi, estimated using MLTLCA)
+  // fixedpars = 2 for two-stage (fixing vOmega and mPhi, estimated using MLTLCA)
   
   int iV    = ivItemcat.n_elem;
-  int n,j,k,m,t,p,v;
+  int l,n,j,k,m,t,p,v;
   int isize = 1;
   double size = 1.0;
   int iN = mY.n_rows;
@@ -272,14 +603,16 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   }
   
   LLKSeries = LLKSeries.subvec(0, iter - 1);
+  arma::ivec ivItemcat_red = ivItemcat -1;
+  int nfreepar_res = sum(ivItemcat_red);
   
   double BIClow;
   double BIChigh;
-  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(iK*iT + (iT - 1.0)*iP*iM + (iM - 1.0));
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(iK*iT + (iT - 1.0)*iP*iM + (iM - 1.0));
+  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
   
   double AIC;
-  AIC = -2.0*LLKSeries(iter-1) + 2.0*(iK*iT + (iT - 1.0)*iP*iM + (iM - 1.0));
+  AIC = -2.0*LLKSeries(iter-1) + 2.0*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
   
   // computing log-linear parameters
   
@@ -305,18 +638,48 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   ICL_BIClow = BIClow + 2.0*Perr_low;
   ICL_BIChigh = BIChigh + 2.0*Perr_high;
   
-  arma::mat mBeta = log(mPhi/(1.0 - mPhi));
+  
+
+  arma::mat mBeta = zeros(nfreepar_res,iT);
+  int iRoll = 0;
+  int iItemfoo = 0;
+  int iItemref = 0;
+  for(t = 0; t < iT; t++){
+    iRoll = 0;
+    iItemfoo = 0;
+    iItemref = 0;
+    for(v  = 0; v < iV; v++){
+      for(l = 1; l < ivItemcat(v); l++){
+        if(v > 0){
+          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
+          iItemref = sum(ivItemcat.subvec(0, v-1));
+          mBeta(iRoll,t) = log(mPhi(iItemfoo,t)/mPhi(iItemref,t));
+          iRoll += 1;
+        }else{
+          mBeta(iRoll,t) = log(mPhi(l,t)/mPhi(0,t));
+          iRoll += 1;
+        }
+      }
+    }
+  }
   
   arma::vec parvec = join_cols(join_cols(vectorise(mDelta),vectorise(cGamma)),vectorise(mBeta));
   
-  arma::mat mBeta_Score=zeros(iN,iK*iT);
+  arma::mat mBeta_Score=zeros(iN,nfreepar_res*iT);
+  // first category as reference
   int iroll = 0;
   for(t = 0; t < iT; t++){
-    for(k = 0; k < iK; k++){
-      for(m = 0; m < iM; m++){
-        mBeta_Score.col(iroll) += cPMX.slice(m).col(t)%(mY.col(k) - mPhi(k,t));
+    iItemfoo = 0;
+    for(v  = 0; v < iV; v++){
+      for(l = 1; l < ivItemcat(v); l++){
+        if(v > 0){
+          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
+          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(iItemfoo) - mPhi(iItemfoo,t));
+        }else{
+          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(l) - mPhi(l,t));
+        }
+        iroll += 1;
       }
-      iroll += 1;
     }
   }
   
@@ -326,25 +689,38 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
     mDelta_Score_out.rows(foo,foo + vNj(j)-1)= repmat(mDelta_Score.row(j),vNj(j),1); 
     foo = foo + vNj(j);
   }
-  
-  arma::mat mScore = join_rows(join_rows(mDelta_Score_out,mGamma_Score),mBeta_Score);
+  arma::mat mScore = join_rows(mDelta_Score_out,mGamma_Score);
+  if(nsteps != 3){
+    mScore = join_rows(mScore,mBeta_Score);
+  }
+  if(nsteps == 3){
+    nfreepar_res = 0;
+  }
   arma::mat Infomat = mScore.t()*mScore/iN;
   arma::mat Varmat = pinv(Infomat)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
   int parsfree        = (iT - 1)*iP*iM + (iM - 1)*iPh;
-  arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iT*iK)-1,uncondLatpars + (iT*iK)-1);
+  arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmatInv  = pinv(mJmat); 
-  arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iT*iK)-1);
+  arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
   arma::vec SEs_cor =  SEs_unc;
   if(fixedpars==1){
     SEs_cor.subvec(0,parsfree-1) = sqrt(mVar_corr.diag());
   }
+  
+  if(nsteps==3){
+    mV2.eye();
+    mQ.eye();
+    mVar_corr.eye();
+    SEs_cor =  SEs_unc;
+  }
+  
   List EMout;
   EMout["mPhi"]        = mPhi;
   EMout["cGamma"]      = cGamma;
@@ -392,7 +768,7 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
 
 
 // [[Rcpp::export]]
-List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_start, arma::cube cGamma_start, arma::mat mPhi_start, arma::mat mStep1Var, arma::ivec ivItemcat, int maxIter = 1e3, double tol = 1e-8, int fixedpars = 0, double NRtol = 1e-6, int NRmaxit = 100){
+List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_start, arma::cube cGamma_start, arma::mat mPhi_start, arma::mat mStep1Var, arma::ivec ivItemcat, int maxIter = 1e3, double tol = 1e-8, int fixedpars = 0, int nsteps = 1, double NRtol = 1e-6, int NRmaxit = 100){
   // mY is iJ*sum(nj) x K
   // mZ is iJ*sum(nj) x iP, where iP is the number of iP-1 covariates (can even be 1) +
   // a column vector of ones to include the intercept
@@ -409,10 +785,10 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   // ivItemcat is the vector of number of categories for each item
   // fixedpars = 0 for one-step estimator
   // fixedpars = 1 for "pure" two-step (mPhi fixed, estimated using LCAfit or MLTLCA)
-  // fixedpars = 2 for three-step (fixing vOmega and mPhi, estimated using MLTLCA)
+  // fixedpars = 2 for two-stage (fixing vOmega and mPhi, estimated using MLTLCA)
   
   int iV    = ivItemcat.n_elem;
-  int n,j,k,m,t,p,v;
+  int n,j,k,l,m,t,p,v;
   int isize = 1;
   double size = 1.0;
   int iN = mY.n_rows;
@@ -630,13 +1006,14 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   }
   
   LLKSeries = LLKSeries.subvec(0, iter - 1);
-  
+  arma::ivec ivItemcat_red = ivItemcat -1;
+  int nfreepar_res = sum(ivItemcat_red);
   double BIClow;
   double BIChigh;
   double AIC;
-  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(iK*iT + (iT - 1.0)*iP*iM + (iM - 1.0));
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(iK*iT + (iT - 1.0)*iP*iM + (iM - 1.0));
-  AIC     = -2.0*LLKSeries(iter-1) + 2.0*(iK*iT + (iT - 1.0)*iP*iM + (iM - 1.0));
+  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  AIC     = -2.0*LLKSeries(iter-1) + 2.0*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
   
   // computing log-linear parameters
   arma::vec vDeltafoo(iM);
@@ -666,47 +1043,92 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   ICL_BIClow = BIClow + 2.0*Perr_low;
   ICL_BIChigh = BIChigh + 2.0*Perr_high;
   
-  arma::mat mBeta = log(mPhi/(1.0 - mPhi));
-  
+  arma::mat mBeta = zeros(nfreepar_res,iT);
+  int iRoll = 0;
+  int iItemfoo = 0;
+  int iItemref = 0;
+  for(t = 0; t < iT; t++){
+    iRoll = 0;
+    iItemfoo = 0;
+    iItemref = 0;
+    for(v  = 0; v < iV; v++){
+      for(l = 1; l < ivItemcat(v); l++){
+        if(v > 0){
+          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
+          iItemref = sum(ivItemcat.subvec(0, v-1));
+          mBeta(iRoll,t) = log(mPhi(iItemfoo,t)/mPhi(iItemref,t));
+          iRoll += 1;
+        }else{
+          mBeta(iRoll,t) = log(mPhi(l,t)/mPhi(0,t));
+          iRoll += 1;
+        }
+      }
+    }
+  }
   arma::vec parvec = join_cols(join_cols(vDelta,vectorise(cGamma)),vectorise(mBeta));
   
   arma::mat mOmega_Score(iN,iM-1);
   for(m =1; m< iM; m++){
     mOmega_Score.col(m-1) = mPW_N.col(m)*(1.0 - vOmega(m));
   }
-  arma::mat mBeta_Score=zeros(iN,iK*iT);
+  arma::mat mBeta_Score=zeros(iN,nfreepar_res*iT);
+  // first category as reference
   int iroll = 0;
   for(t = 0; t < iT; t++){
-    for(k = 0; k < iK; k++){
-      for(m = 0; m < iM; m++){
-        mBeta_Score.col(iroll) += cPMX.slice(m).col(t)%(mY.col(k) - mPhi(k,t));
+    iItemfoo = 0;
+    for(v  = 0; v < iV; v++){
+      for(l = 1; l < ivItemcat(v); l++){
+        if(v > 0){
+          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
+          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(iItemfoo) - mPhi(iItemfoo,t));
+        }else{
+          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(l) - mPhi(l,t));
+        }
+        iroll += 1;
       }
-      iroll += 1;
     }
   }
-  arma::mat mScore = join_rows(join_rows(mOmega_Score,mGamma_Score),mBeta_Score);
+  // 
+  
+  arma::mat mScore = join_rows(mOmega_Score,mGamma_Score);
+  if(nsteps != 3){
+    mScore = join_rows(mScore,mBeta_Score);
+  }
+  
   arma::mat Infomat = mScore.t()*mScore/iN;
   arma::mat Varmat = pinv(Infomat)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
   int parsfree        = (iT - 1)*iP*iM + (iM - 1);
-  arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iT*iK)-1,uncondLatpars + (iT*iK)-1);
+  if(nsteps == 3){
+    nfreepar_res = 0;
+  }
+  arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmatInv  = pinv(mJmat); 
-  arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iT*iK)-1);
+  arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
   arma::vec SEs_cor =  SEs_unc;
   if(fixedpars==1){
     SEs_cor.subvec(0,parsfree-1) = sqrt(mVar_corr.diag());
   }
+  if(nsteps==3){
+    mV2.eye();
+    mQ.eye();
+    mVar_corr.eye();
+    SEs_cor =  SEs_unc;
+  }
+  
   List EMout;
   EMout["mPhi"]        = mPhi;
   EMout["cGamma"]      = cGamma;
   EMout["cGamma_Info"] = cGamma_Info;
   EMout["mGamma_Score"] = mGamma_Score;
+  EMout["mOmega_Score"] = mOmega_Score;
+  EMout["mBeta_Score"] = mBeta_Score;
   EMout["cPi"]       = cPi;
   EMout["vOmega"]    = vOmega;
   EMout["cPMX"]      = cPMX;
@@ -1093,7 +1515,7 @@ List MLTLCA_covlowhigh(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec vNj,
   // 
   // fixedpars = 0 for one-step estimator
   // fixedpars = 1 for "pure" two-step (mPhi fixed, estimated using LCAfit or MLTLCA)
-  // fixedpars = 2 for three-step (fixing vOmega and mPhi, estimated using MLTLCA)
+  // fixedpars = 2 for two-stage (fixing vOmega and mPhi, estimated using MLTLCA)
   
   int n,j,k,m,t;
   int isize = 1;
@@ -1461,7 +1883,7 @@ List MLTLCA_cov(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_star
   // 
   // fixedpars = 0 for one-step estimator
   // fixedpars = 1 for "pure" two-step (mPhi fixed, estimated using LCAfit or MLTLCA)
-  // fixedpars = 2 for three-step (fixing vOmega and mPhi, estimated using MLTLCA)
+  // fixedpars = 2 for two-stage (fixing vOmega and mPhi, estimated using MLTLCA)
   
   int n,j,k,m,t;
   int isize = 1;
@@ -1689,7 +2111,7 @@ List MLTLCA_cov(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_star
   
   double ICL_BIClow;
   double ICL_BIChigh;
-    ICL_BIClow = BIClow + 2.0*Perr_low;
+  ICL_BIClow = BIClow + 2.0*Perr_low;
   ICL_BIChigh = BIChigh + 2.0*Perr_high;
   
   arma::mat mBeta = log(mPhi/(1.0 - mPhi));
