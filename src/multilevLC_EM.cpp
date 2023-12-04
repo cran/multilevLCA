@@ -1,3 +1,4 @@
+#define ARMA_WARN_LEVEL 1
 #include <RcppArmadillo.h>
 #include "SafeFunctions.h"
 #include "Utils.h"
@@ -608,20 +609,18 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   
   double BIClow;
   double BIChigh;
-  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
   
   double AIC;
-  AIC = -2.0*LLKSeries(iter-1) + 2.0*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  AIC = -2.0*LLKSeries(iter-1) + 2.0*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
   
   // computing log-linear parameters
-  
   arma::vec vPW = mean(mPW).t();
   double Terr_high = iJ*accu(-vPW%log(vPW));
   mlogPW.elem( find_nonfinite(mlogPW) ).zeros();
   double Perr_high = accu(-mPW%mlogPW);
   double R2entr_high = 1.0-(Perr_high/Terr_high);
-  
   arma::mat mPXmarg = sum(cPMX,2);
   for(n = 0; n< iN; n++){
     mPXmarg.row(n) = mPXmarg.row(n)/accu(mPXmarg.row(n));
@@ -632,57 +631,50 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   mlogPXmarg.elem(find_nonfinite(mlogPXmarg) ).zeros();
   double Perr_low = accu(-mPXmarg%mlogPXmarg);
   double R2entr_low = (Terr_low - Perr_low)/Terr_low;
-  
   double ICL_BIClow;
   double ICL_BIChigh;
   ICL_BIClow = BIClow + 2.0*Perr_low;
   ICL_BIChigh = BIChigh + 2.0*Perr_high;
   
   
-
+  
   arma::mat mBeta = zeros(nfreepar_res,iT);
   int iRoll = 0;
-  int iItemfoo = 0;
   int iItemref = 0;
+  int iItemfoo = 0;
   for(t = 0; t < iT; t++){
     iRoll = 0;
-    iItemfoo = 0;
-    iItemref = 0;
     for(v  = 0; v < iV; v++){
-      for(l = 1; l < ivItemcat(v); l++){
-        if(v > 0){
-          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
-          iItemref = sum(ivItemcat.subvec(0, v-1));
-          mBeta(iRoll,t) = log(mPhi(iItemfoo,t)/mPhi(iItemref,t));
-          iRoll += 1;
-        }else{
-          mBeta(iRoll,t) = log(mPhi(l,t)/mPhi(0,t));
-          iRoll += 1;
-        }
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mBeta.col(t).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(t).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,t));
+      }else{
+        mBeta.col(t).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(t).subvec(1,ivItemcat(v)-1)/mPhi(0,t));
       }
+      iRoll += (ivItemcat(v)-1);  
     }
   }
   
   arma::vec parvec = join_cols(join_cols(vectorise(mDelta),vectorise(cGamma)),vectorise(mBeta));
   
   arma::mat mBeta_Score=zeros(iN,nfreepar_res*iT);
-  // first category as reference
-  int iroll = 0;
+  iRoll = 0;
+  iItemfoo = 0;
   for(t = 0; t < iT; t++){
-    iItemfoo = 0;
+    iRoll = 0;
+    iItemref = 0;
     for(v  = 0; v < iV; v++){
-      for(l = 1; l < ivItemcat(v); l++){
-        if(v > 0){
-          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
-          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(iItemfoo) - mPhi(iItemfoo,t));
-        }else{
-          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(l) - mPhi(l,t));
-        }
-        iroll += 1;
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mBeta_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+        repmat(mPMsumX.col(t),1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + ivItemcat(v)-1) - repmat(mPhi.col(t).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1).t(),iN,1));
+      }else{
+        mBeta_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mPMsumX.col(t),1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(t).subvec(1,ivItemcat(v)-1).t(),iN,1));
       }
+      iRoll += (ivItemcat(v)-1);  
     }
   }
-  
   arma::mat mDelta_Score_out(iN,(iM-1)*iPh);
   foo= 0;
   for(j = 0; j < iJ; j++){
@@ -1046,23 +1038,16 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   arma::mat mBeta = zeros(nfreepar_res,iT);
   int iRoll = 0;
   int iItemfoo = 0;
-  int iItemref = 0;
   for(t = 0; t < iT; t++){
     iRoll = 0;
-    iItemfoo = 0;
-    iItemref = 0;
     for(v  = 0; v < iV; v++){
-      for(l = 1; l < ivItemcat(v); l++){
-        if(v > 0){
-          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
-          iItemref = sum(ivItemcat.subvec(0, v-1));
-          mBeta(iRoll,t) = log(mPhi(iItemfoo,t)/mPhi(iItemref,t));
-          iRoll += 1;
-        }else{
-          mBeta(iRoll,t) = log(mPhi(l,t)/mPhi(0,t));
-          iRoll += 1;
-        }
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mBeta.col(t).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(t).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,t));
+      }else{
+        mBeta.col(t).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(t).subvec(1,ivItemcat(v)-1)/mPhi(0,t));
       }
+      iRoll += (ivItemcat(v)-1);  
     }
   }
   arma::vec parvec = join_cols(join_cols(vDelta,vectorise(cGamma)),vectorise(mBeta));
@@ -1072,22 +1057,23 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
     mOmega_Score.col(m-1) = mPW_N.col(m)*(1.0 - vOmega(m));
   }
   arma::mat mBeta_Score=zeros(iN,nfreepar_res*iT);
-  // first category as reference
-  int iroll = 0;
+  iRoll = 0;
+  iItemfoo = 0;
   for(t = 0; t < iT; t++){
-    iItemfoo = 0;
+    iRoll = 0;
     for(v  = 0; v < iV; v++){
-      for(l = 1; l < ivItemcat(v); l++){
-        if(v > 0){
-          iItemfoo = sum(ivItemcat.subvec(0, v-2))+l;
-          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(iItemfoo) - mPhi(iItemfoo,t));
-        }else{
-          mBeta_Score.col(iroll) = mPMsumX.col(t)%(mY.col(l) - mPhi(l,t));
-        }
-        iroll += 1;
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mBeta_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mPMsumX.col(t),1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + ivItemcat(v)-1) - repmat(mPhi.col(t).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1).t(),iN,1));
+      }else{
+        mBeta_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mPMsumX.col(t),1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(t).subvec(1,ivItemcat(v)-1).t(),iN,1));
       }
+      iRoll += (ivItemcat(v)-1);  
     }
-  }
+  } 
+  
   // 
   
   arma::mat mScore = join_rows(mOmega_Score,mGamma_Score);
@@ -1374,13 +1360,15 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
   }
   
   
+  arma::ivec ivItemcat_red = ivItemcat -1;
+  int nfreepar_res = sum(ivItemcat_red);
   
   double BIClow;
   double BIChigh;
   double AIC;
-  BIClow = -2.0*LLKSeries(iter-1) + log(iN)*(iK*iT + (iT - 1.0)*iM + (iM - 1.0));
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(iK*iT + (iT - 1.0)*iM + (iM - 1.0));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(iK*iT + (iT - 1.0)*iM + (iM - 1.0));
+  BIClow = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
+  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
   
   // computing log-linear parameters
   arma::vec vDeltafoo(iM);
@@ -1415,8 +1403,23 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
   ICL_BIClow = BIClow + 2.0*Perr_low;
   ICL_BIChigh = BIChigh + 2.0*Perr_high;
   
-  arma::mat mBeta = log(mPhi/(1.0 - mPhi));
-  
+  arma::mat mBeta = zeros(nfreepar_res,iT);
+  // 
+  int iRoll = 0;
+  int iItemref = 0;
+  int iItemfoo = 0;
+  for(t = 0; t < iT; t++){
+    iRoll = 0;
+    for(v  = 0; v < iV; v++){
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mBeta.col(t).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(t).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,t));
+      }else{
+        mBeta.col(t).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(t).subvec(1,ivItemcat(v)-1)/mPhi(0,t));
+      }
+      iRoll += (ivItemcat(v)-1);  
+    }
+  }
   arma::vec parvec = join_cols(join_cols(vDelta,vectorise(mGamma)),vectorise(mBeta));
   
   // Computing the score
@@ -1439,16 +1442,24 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
   }
   iFoo2 = 0;
   
-  arma::mat mBeta_Score=zeros(iN,iK*iT);
-  int iroll = 0;
+  arma::mat mBeta_Score=zeros(iN,nfreepar_res*iT);
+  iRoll = 0;
+  iItemfoo = 0;
   for(t = 0; t < iT; t++){
-    for(k = 0; k < iK; k++){
-      for(m = 0; m < iM; m++){
-        mBeta_Score.col(iroll) += cPMX.slice(m).col(t)%(mY.col(k) - mPhi(k,t));
+    iRoll = 0;
+    iItemref = 0;
+    for(v  = 0; v < iV; v++){
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mBeta_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mPMsumX.col(t),1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + ivItemcat(v)-1) - repmat(mPhi.col(t).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1).t(),iN,1));
+      }else{
+        mBeta_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mPMsumX.col(t),1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(t).subvec(1,ivItemcat(v)-1).t(),iN,1));
       }
-      iroll += 1;
+      iRoll += (ivItemcat(v)-1);  
     }
-  }
+  } 
   
   arma::mat mScore = join_rows(join_rows(mOmega_Score,mGamma_Score),mBeta_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;

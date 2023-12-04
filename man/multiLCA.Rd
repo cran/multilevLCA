@@ -59,7 +59,7 @@ verbose = TRUE
      Whether to output extensive model and estimation information. Default: \code{FALSE}.
 }
   \item{dataout}{
-     Whether to output the cleaned dataset on which estimation was performed. Default: \code{FALSE}.
+     Whether to match class predictions to the observed data. Default: \code{FALSE}.
 }
   \item{kmea}{
      Whether to compute starting values for single-level model using \eqn{K}-means (\code{TRUE}), which is recommended for algorithmic stability, or \eqn{K}-modes (\code{FALSE}). Default: \code{TRUE}.
@@ -160,7 +160,7 @@ Multilevel model estimation returns (if \code{extout = TRUE}, a subset):
   \item{mPW}{Posterior higher-level class assignment for higher-level units (proportional assignment)}
   \item{mlogPW}{Log of \code{mPW}}
   \item{mPW_N}{Posterior higher-level class assignment for lower-level units (proportional assignment)}
-  \item{mPMsumX}{Posterior lower-level class assignment for lower-level untis after marginalization over the higher-level classes (proportional assignment)}
+  \item{mPMsumX}{Posterior lower-level class assignment for lower-level units after marginalization over the higher-level classes (proportional assignment)}
   \item{R2entr_low}{Lower-level entropy-based R\eqn{^2}}
   \item{R2entr_high}{Higher-level entropy-based R\eqn{^2}}
   \item{BIClow}{Lower-level Bayesian Information Criterion (BIC)}
@@ -194,7 +194,7 @@ Multilevel model estimation with lower-level covariates returns (if \code{extout
   \item{mPW}{Posterior higher-level class assignment for higher-level units (proportional assignment)}
   \item{mlogPW}{Log of \code{mPW}}
   \item{mPW_N}{Posterior higher-level class assignment for lower-level units (proportional assignment)}
-  \item{mPMsumX}{Posterior lower-level class assignment for lower-level untis after marginalization over the higher-level classes (proportional assignment)}
+  \item{mPMsumX}{Posterior lower-level class assignment for lower-level units after marginalization over the higher-level classes (proportional assignment)}
   \item{R2entr_low}{Lower-level entropy-based R\eqn{^2}}
   \item{R2entr_high}{Higher-level entropy-based R\eqn{^2}}
   \item{BIClow}{Lower-level Bayesian Information Criterion (BIC)}
@@ -236,7 +236,7 @@ Multilevel model estimation with lower- and higher-level covariates returns (if 
   \item{mPW}{Posterior higher-level class assignment for higher-level units (proportional assignment)}
   \item{mlogPW}{Log of \code{mPW}}
   \item{mPW_N}{Posterior higher-level class assignment for lower-level units (proportional assignment)}
-  \item{mPMsumX}{Posterior lower-level class assignment for lower-level untis after marginalization over the higher-level classes (proportional assignment)}
+  \item{mPMsumX}{Posterior lower-level class assignment for lower-level units after marginalization over the higher-level classes (proportional assignment)}
   \item{R2entr_low}{Lower-level entropy-based R\eqn{^2}}
   \item{R2entr_high}{Higher-level entropy-based R\eqn{^2}}
   \item{BIClow}{Lower-level Bayesian Information Criterion (BIC)}

@@ -1,3 +1,4 @@
+#define ARMA_WARN_LEVEL 1
 #include <RcppArmadillo.h>
 #include "SafeFunctions.h"
 
@@ -290,6 +291,31 @@ List NR_step_covIT(arma::mat mX, arma::mat mbeta, arma::mat mU, double tol=1e-06
         if(foostep > 0.5){
           NRstep = NRstep/foostep*0.5;
         }
+        // needs a trick to make sure it's monotone!!!
+        // code below taken from lasso paper
+        // begins here!!!!
+        // for(c = 0; c < iC; c++){
+        //   ctrl = 1;
+        //   while(ctrl==1){
+        //     alphanext.col(c) = alphastart - NR_con(c)*NR_step;
+        //     for(g = 0; g < (G-1);g++){
+        //       if(abs3(alphanext(g,c)) > 12.0){
+        //         NR_con(c) = NR_con(c)*0.9;
+        //       }
+        //       else{
+        //         ctrl = 0;
+        //       }
+        //     }
+        //   }
+        //   for(g = 0; g < (G-1);g++){
+        //     pignext(g,c) = exp(alphanext(g,c));
+        //   }
+        //   pignext.col(c) = pignext.col(c)/accu(pignext.col(c));
+        //   par_loglike(c) = (-1.0)*accu(Uplusl%log(pignext.col(c)) - pow(pignext.col(c),gamma)%lambdag%normBg);
+        //   
+        // }
+        // ends here!!!!
+        
         mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
       }
     }
@@ -386,6 +412,7 @@ List NR_step_covIT_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, do
   double dLKfoo = 0.0;
   double control = 0.0;
   int it=0;
+  int fooiter =0;
   for(n = 0; n < N; n++){
     for(k = 1; k < K; k++){
       w(n,k) = exp(accu(X.row(n) % mbeta.row(k-1)));
@@ -446,7 +473,8 @@ List NR_step_covIT_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, do
     }
     NR_LS = 1.0;
     control = 0.0;
-    while(control == 0.0){
+    fooiter = 0;
+    while(control == 0.0 && fooiter < maxIt){
       w_i_foo.fill(1.0);
       for(k=1; k < K; k++){
         mbeta_foo.row(k-1) = mbeta.row(k-1) + NR_LS*NRstep.t();
@@ -459,6 +487,7 @@ List NR_step_covIT_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, do
       dLKfoo = accu(mU%log(w_i_foo));
       if((dLKfoo -lk0) < 0){
         NR_LS = NR_LS*dC;
+        fooiter +=1;
       }else{
         control = 1.0;
         mbeta = mbeta_foo;
@@ -654,6 +683,7 @@ List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC
   double lk;
   double dLKfoo;
   int it=0;
+  int  fooiter = 0;
   for(n = 0; n < N; n++){
     for(k = 1; k < K; k++){
       w(n,k) = exp(accu(X.row(n) % mbeta.row(k-1)));
@@ -709,7 +739,8 @@ List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC
     // 
     NR_LS = 1.0;
     control = 0.0;
-    while(control == 0.0){
+    fooiter = 0;
+    while(control == 0.0 && fooiter < maxIt){
       w_i_foo.fill(1.0);
       for(k=1; k < K; k++){
         mbeta_foo.row(k-1) = mbeta.row(k-1) + NR_LS*NRstep.t();
@@ -722,6 +753,7 @@ List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC
       dLKfoo = accu(mU%log(w_i_foo));
       if((dLKfoo -lk0) < 0){
         NR_LS = NR_LS*dC;
+        fooiter +=1;
       }else{
         control = 1.0;
         mbeta = mbeta_foo;
@@ -763,6 +795,9 @@ List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC
   
   return NR_out;
 }
+
+
+
 
 
 

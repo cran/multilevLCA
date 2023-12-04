@@ -10,14 +10,14 @@ Visualizes conditional response probabilities estimated by the \code{\link{multi
 Let \code{out} denote the list object returned by the \code{\link{multiLCA}} function. Executing \code{plot(out)} visualizes the conditional response probabilities given by the \code{mPhi} matrix in \code{out}.
 }
 \usage{
-\method{plot}{multiLCA}(x, horiz = TRUE, clab = NULL, \dots)
+\method{plot}{multiLCA}(x, horiz = FALSE, clab = NULL, \dots)
 }
 \arguments{
   \item{x}{
     The object returned by the \code{\link{multiLCA}} function
 }
   \item{horiz}{
-    Whether item labels should be oriented horizontally (\code{TRUE}) or vertically (\code{FALSE}). Default \code{TRUE}
+    Whether item labels should be oriented horizontally (\code{TRUE}) or vertically (\code{FALSE}). Default \code{FALSE}
 }
   \item{clab}{
     A character vector with user-specified class labels, if available, in the order "Class 1", "Class 2", ... under the default settings, i.e. top-to-bottom. Default \code{NULL}

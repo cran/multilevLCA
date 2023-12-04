@@ -1,3 +1,4 @@
+#define ARMA_WARN_LEVEL 1
 #include <RcppArmadillo.h>
 #include "SafeFunctions.h"
 #include "Utils.h"
@@ -507,16 +508,33 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
     iter +=1;
   }
   LLKSeries = LLKSeries.subvec(0, iter - 1);
-  arma::mat gamma(iH,iK);
-  gamma = log(mPhi/(1.0 - mPhi));
+  arma::ivec ivItemcat_red = ivItemcat -1;
+  int nfreepar_res = sum(ivItemcat_red);
+  // 
+  arma::mat gamma = zeros(nfreepar_res,iK);
+  int iRoll = 0;
+  int iItemfoo = 0;
+  for(k = 0; k < iK; k++){
+    iRoll = 0;
+    for(v  = 0; v < iV; v++){
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
+      }else{
+        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
+      }
+      iRoll += (ivItemcat(v)-1);  
+    }
+  }
+  // 
   // 
   // mbeta is iK-1 x iP+1
   // 
   arma::vec parvec = join_cols(vectorise(mbeta.t()),vectorise(gamma));
   
   double BIC,AIC;
-  BIC = -2.0*LLKSeries(iter-1) + log(NT)*(iH*iK + (iK - 1));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(iH*iK + (iK - 1));
+  BIC = -2.0*LLKSeries(iter-1) + log(NT)*(nfreepar_res + (iK - 1));
+  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iK - 1));
   // double Terr = accu(-mPg%log(mPg));
   arma::vec vPg = mean(mU).t();
   double Terr = accu(-vPg%log(vPg));
@@ -550,17 +568,23 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   // Computing the score
   
   
-  arma::mat mGamma_Score=zeros(iN,iH*iK);
-  int iroll = 0;
+  arma::mat mGamma_Score=zeros(iN,nfreepar_res*iK);
+  iRoll = 0;
+  iItemfoo = 0;
   for(k = 0; k < iK; k++){
-    for(h = 0; h < iH; h++){
-      mGamma_Score.col(iroll) = (mU.col(k)%(mY.col(h) - mPhi(h,k)));
-      iroll += 1;
+    iRoll = 0;
+    for(v  = 0; v < iV; v++){
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mU.col(k),1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1).t(),iN,1));
+      }else{
+        mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mU.col(k),1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+      }
+      iRoll += (ivItemcat(v)-1);  
     }
-  }
-  
-  iroll=0;
-  
+  } 
   // Expected information matrix 
   
   arma::mat mScore = join_rows(mbeta_score,mGamma_Score);
@@ -571,11 +595,11 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   // Matrix formula
   int uncondLatpars   = iK - 1;
   int parsfree        = (iK - 1)*iP;
-  arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iK*iH)-1,uncondLatpars + (iK*iH)-1);
+  arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iK*nfreepar_res)-1,uncondLatpars + (iK*nfreepar_res)-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmatInv  = pinv(mJmat); 
-  arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iK*iH)-1);
+  arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iK*nfreepar_res)-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
   arma::vec SEs_cor =  SEs_unc;
@@ -704,14 +728,31 @@ List LCA_poly(arma::mat mY, int iK, arma::mat mU, arma::ivec ivItemcat, int maxI
   alphafoo = log(pg/pg(0));
   arma::vec alpha(iK-1);
   alpha = alphafoo.subvec(1,iK-1);
-  arma::mat gamma(iH,iK);
-  gamma = log(mPhi/(1.0 - mPhi));
+  arma::ivec ivItemcat_red = ivItemcat -1;
+  int nfreepar_res = sum(ivItemcat_red);
+  // 
+  arma::mat gamma = zeros(nfreepar_res,iK);
+  int iRoll = 0;
+  int iItemref = 0;
+  int iItemfoo = 0;
+  for(k = 0; k < iK; k++){
+    iRoll = 0;
+    for(v  = 0; v < iV; v++){
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
+      }else{
+        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
+      }
+      iRoll += (ivItemcat(v)-1);  
+    }
+  }
   
   arma::vec parvec = join_cols(alpha,vectorise(gamma));
   
   double BIC, AIC;
-  BIC = -2.0*LLKSeries(iter-1) + log(NT)*(iH*iK + (iK - 1));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(iH*iK + (iK - 1));
+  BIC = -2.0*LLKSeries(iter-1) + log(NT)*(nfreepar_res + (iK - 1));
+  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iK - 1));
   double Terr = accu(-pg%log(pg));
   arma::mat mlogU = trunc_log(mU);
   double Perr = mean(sum(-mU%mlogU,1));
@@ -846,14 +887,32 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
   alphafoo = log(pg/pg(0));
   arma::vec alpha(iK-1);
   alpha = alphafoo.subvec(1,iK-1);
-  arma::mat gamma(iH,iK);
-  gamma = log(mPhi/(1.0 - mPhi));
+  
+  arma::ivec ivItemcat_red = ivItemcat -1;
+  int nfreepar_res = sum(ivItemcat_red);
+  // 
+  arma::mat gamma = zeros(nfreepar_res,iK);
+  int iRoll = 0;
+  int iItemref = 0;
+  int iItemfoo = 0;
+  for(k = 0; k < iK; k++){
+    iRoll = 0;
+    for(v  = 0; v < iV; v++){
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
+      }else{
+        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
+      }
+      iRoll += (ivItemcat(v)-1);  
+    }
+  }
   
   arma::vec parvec = join_cols(alpha,vectorise(gamma));
   
   double BIC, AIC;
-  BIC = -2.0*LLKSeries(iter-1) + log(iNtot)*(iH*iK + (iK - 1));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(iH*iK + (iK - 1));
+  BIC = -2.0*LLKSeries(iter-1) + log(iNtot)*(nfreepar_res + (iK - 1));
+  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iK - 1));
   double Terr = accu(-pg%log(pg));
   arma::mat mlogU = trunc_log(mU);
   double Perr = sum(sum(-mU%mlogU,1)%ivFreq)/iNtot;
@@ -886,16 +945,25 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
     mPg_Score.col(k-1) = (mU.col(k) - pg(k))%ivFreq;
   }
   
-  arma::mat mGamma_Score=zeros(iN,iH*iK);
-  int iroll = 0;
+  arma::mat mGamma_Score=zeros(iN,nfreepar_res*iK);
+  iRoll = 0;
+  iItemfoo = 0;
   for(k = 0; k < iK; k++){
-    for(h = 0; h < iH; h++){
-      mGamma_Score.col(iroll) = (mU.col(k)%(mY.col(h) - mPhi(h,k)))%ivFreq;
-      iroll += 1;
+    iRoll = 0;
+    iItemref = 0;
+    for(v  = 0; v < iV; v++){
+      if(v>0){
+        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1).t(),iN,1));
+      }else{
+        mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+          repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+      }
+      iRoll += (ivItemcat(v)-1);  
     }
-  }
+  } 
   
-  iroll=0;
   
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;

@@ -1,4 +1,4 @@
-.onAttach <- function(libname, pkgname) {
+.onAttach <- function(libname, pkgname){
   packageStartupMessage("multilevLCA: Estimates and plots single- and multilevel latent class models.")
 }
 
@@ -295,7 +295,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step2mat[step2mat=="Inf"|step2mat=="-Inf"|is.na(step2mat)] = "-"
         step3mat = matrix(as.character(round(unlist(out[14:18]),2)),length(iT),5,
-                          dimnames=list(paste0("iT=",iT,"iM*"),
+                          dimnames=list(paste0("iT=",iT,",iM*"),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step3mat[step3mat=="Inf"|step3mat=="-Inf"|is.na(step3mat)] = "-"
         optimal = matrix(c(out$iT_opt,out$iM_opt),dimnames=list(c("iT=","iM="),""))
@@ -319,7 +319,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step2mat[step2mat=="Inf"|step2mat=="-Inf"|is.na(step2mat)] = "-"
         step3mat = matrix(as.character(round(unlist(out[14:18]),2)),length(iT),5,
-                          dimnames=list(paste0("iT=",iT,"iM*"),
+                          dimnames=list(paste0("iT=",iT,",iM*"),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
         step3mat[step3mat=="Inf"|step3mat=="-Inf"|is.na(step3mat)] = "-"
         optimal = matrix(c(out$iT_opt,out$iM_opt),dimnames=list(c("iT=","iM="),""))
@@ -525,6 +525,7 @@ LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1)
   mU            = vecTomatClass(clusfoo)
   out           = LCA_fast(mY_unique,freq,iT,mU,maxIter,tol,reord)
   out$mY_unique = mY_unique
+  out$freq      = freq
   return(out)
 }
 #
@@ -622,6 +623,14 @@ meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e
   mPhi_start  = out_LCA$out$mPhi
   mPi_fast    = table(index_indiv_high,rep(out_LCA$out$vModalAssnm+1,times=out_LCA$out$freq))
   mPi_start   = t(mPi_fast/rowSums(mPi_fast))
+  if(nrow(mPi_start)!=iT){
+    warning(paste0("Initialization suggests less than iT=",iT," lower-level classes."),call.=FALSE)
+    mPi_start_replace                                   = matrix(NA,nrow=iT,ncol=iM)
+    mPi_start_replace[as.numeric(rownames(mPi_start)),] = mPi_start
+    mPi_start_replace[is.na(mPi_start_replace)]         = 1e-4
+    mPi_start_replace                                   = apply(mPi_start_replace,2,function(x){x/sum(x)})
+    mPi_start                                           = mPi_start_replace
+  }
   # 
   return(list(vOmega_start=vOmega_start, mPi_start = mPi_start, mPhi_start = mPhi_start))
 }
@@ -644,7 +653,9 @@ LCA_fast_init_poly = function(mY, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 
     clusfoo     = spectclust$cluster
   }
   mU            = vecTomatClass(clusfoo)
-  out = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,maxIter,tol,reord)
+  out           = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,maxIter,tol,reord)
+  out$mY_unique = mY_unique
+  out$freq      = freq
   return(out)
 }
 #
@@ -745,6 +756,14 @@ meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, kmea = T, maxIter
   mPhi_start  = out_LCA$out$mPhi
   mPi_fast    = table(index_indiv_high,rep(out_LCA$out$vModalAssnm+1,times=out_LCA$out$freq))
   mPi_start   = t(mPi_fast/rowSums(mPi_fast))
+  if(nrow(mPi_start)!=iT){
+    warning(paste0("Initialization suggests less than iT=",iT," lower-level classes."),call.=FALSE)
+    mPi_start_replace                                   = matrix(NA,nrow=iT,ncol=iM)
+    mPi_start_replace[as.numeric(rownames(mPi_start)),] = mPi_start
+    mPi_start_replace[is.na(mPi_start_replace)]         = 1e-4
+    mPi_start_replace                                   = apply(mPi_start_replace,2,function(x){x/sum(x)})
+    mPi_start                                           = mPi_start_replace
+  }
   # 
   return(list(vOmega_start=vOmega_start, mPi_start = mPi_start, mPhi_start = mPhi_start))
 }
@@ -1426,15 +1445,34 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     colnames(out$mPhi)  = paste0("C",1:iT)
     
     # Add matrix of posterior class membership probabilities
-    out$mU            = output$mU
+    out$mU            = output$mU[rep(1:dim(output$mU)[1],output$freq),]
     colnames(out$mU)  = colnames(out$mPhi)
+    if(dataout){
+      
+      out$mU            = cbind(output$mY_unique[rep(1:dim(output$mY_unique)[1],output$freq),],out$mU)
+      rownames(out$mU)  = NULL
+      
+    }
     
     # Add matrix of modal class assignment
-    out$mU_modal            = output$mModalAssnm
+    out$mU_modal            = output$mModalAssnm[rep(1:dim(output$mModalAssnm)[1],output$freq),]
     colnames(out$mU_modal)  = colnames(out$mPhi)
+    if(dataout){
+      
+      out$mU_modal            = cbind(output$mY_unique[rep(1:dim(output$mY_unique)[1],output$freq),],out$mU_modal)
+      rownames(out$mU_modal)  = NULL
+      
+    }
     
     # Add vector of modal class assignment
-    out$vU_modal = output$vModalAssnm+1
+    out$vU_modal = output$vModalAssnm[rep(1:dim(output$vModalAssnm)[1],output$freq),,drop=FALSE]+1
+    colnames(out$vU_modal) = "C"
+    if(dataout){
+      
+      out$vU_modal            = cbind(output$mY_unique[rep(1:dim(output$mY_unique)[1],output$freq),],out$vU_modal)
+      rownames(out$vU_modal)  = NULL
+      
+    }
     
     # Add matrix of classification errors
     out$mClassErr           = output$mClassErr
@@ -1498,12 +1536,6 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     # Add specification
     out$spec            = as.matrix("Single-level LC model")
     rownames(out$spec)  = colnames(out$spec) = ""
-    
-  }
-  if(dataout){
-    
-    out$data            = output$mY_unique
-    rownames(out$data)  = NULL
     
   }
   return(out)
@@ -1581,6 +1613,16 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
     # Add matrix of posterior class membership probabilities
     out$mU            = output$mU
     colnames(out$mU)  = colnames(out$mPhi)
+    if(dataout){
+      
+      data              = cbind(mY,mZ)
+      rownames(data)    = NULL
+      colnames(data)    = c(Y,Z)
+      data              = data[,-which(colnames(data)=="Intercept"),drop=FALSE]
+      out$mU            = cbind(data,out$mU)
+      rownames(out$mU)  = NULL
+      
+    }
     
     # Add matrix of classification errors
     out$mClassErr           = output$mClassErr
@@ -1664,14 +1706,6 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
     rownames(out$spec)  = colnames(out$spec) = ""
     
   }
-  if(dataout){
-    
-    out$data            = cbind(mY,mZ)
-    rownames(out$data)  = NULL
-    colnames(out$data)  = c(Y,Z)
-    out$data            = out$data[,-which(colnames(out$data)=="Intercept"),drop=FALSE]
-    
-  }
   return(out)
 }
 clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,extout,dataout){
@@ -1747,20 +1781,60 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     colnames(out$mPhi)  = paste0("C",1:iT)
     
     # Add cube of joint posterior class membership probabilities
-    out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL, paste0("C",1:iT,",G"), colnames(out$mPi)))
+    out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL,paste0("C",1:iT,",G"),colnames(out$mPi)))
+    if(dataout){
+      
+      data                = cbind(mY,id_high)
+      rownames(data)      = NULL
+      colnames(data)      = c(Y,id_high_name)
+      for(i in 1:length(id_high_levs)){
+        data[data[,id_high_name]==i,id_high_name] = id_high_levs[i]
+      }
+      out$cPMX            = array(unlist(lapply(1:dim(out$cPMX)[3],function(x){cbind(data,out$cPMX[,,x])})),
+                                  c(dim(out$cPMX)[1],ncol(data)+ncol(out$cPMX),dim(out$cPMX)[3]),
+                                  dimnames=list(dimnames(out$cPMX)[[1]],c(Y,id_high_name,dimnames(out$cPMX)[[2]]),dimnames(out$cPMX)[[3]]))
+      
+    }
     
     # Add cube of log of joint posterior class membership probabilities
-    out$cLogPMX = array(output$cLogPMX,dim(output$cLogPMX),dimnames=dimnames(out$cPMX))
+    out$cLogPMX = array(output$cLogPMX,dim(output$cLogPMX),dimnames=list(NULL,paste0("C",1:iT,",G"),colnames(out$mPi)))
+    if(dataout){
+      
+      out$cLogPMX = array(unlist(lapply(1:dim(out$cLogPMX)[3],function(x){cbind(data,out$cLogPMX[,,x])})),
+                          c(dim(out$cLogPMX)[1],ncol(data)+ncol(out$cLogPMX),dim(out$cLogPMX)[3]),
+                          dimnames=list(dimnames(out$cLogPMX)[[1]],c(Y,id_high_name,dimnames(out$cLogPMX)[[2]]),dimnames(out$cLogPMX)[[3]]))
+      
+    }
     
     # Add cube of conditional posterior low-level class membership probabilities
-    out$cPX = array(output$cPX,dim(output$cPX),dimnames=list(NULL, paste0("C",1:iT,"|G"),colnames(out$mPi)))
+    out$cPX = array(output$cPX,dim(output$cPX),dimnames=list(NULL,paste0("C",1:iT,"|G"),colnames(out$mPi)))
+    if(dataout){
+      
+      out$cPX = array(unlist(lapply(1:dim(out$cPX)[3],function(x){cbind(data,out$cPX[,,x])})),
+                          c(dim(out$cPX)[1],ncol(data)+ncol(out$cPX),dim(out$cPX)[3]),
+                          dimnames=list(dimnames(out$cPX)[[1]],c(Y,id_high_name,dimnames(out$cPX)[[2]]),dimnames(out$cPX)[[3]]))
+      
+    }
     
     # Add cube of log of conditional posterior low-level class membership probabilities
-    out$cLogPX = array(output$cLogPX, dim(output$cLogPX),dimnames=dimnames(out$cPX))
+    out$cLogPX = array(output$cLogPX,dim(output$cLogPX),dimnames=list(NULL,paste0("C",1:iT,"|G"),colnames(out$mPi)))
+    if(dataout){
+      
+      out$cLogPX = array(unlist(lapply(1:dim(out$cLogPX)[3],function(x){cbind(data,out$cLogPX[,,x])})),
+                      c(dim(out$cLogPX)[1],ncol(data)+ncol(out$cLogPX),dim(out$cLogPX)[3]),
+                      dimnames=list(dimnames(out$cLogPX)[[1]],c(Y,id_high_name,dimnames(out$cLogPX)[[2]]),dimnames(out$cLogPX)[[3]]))
+      
+    }
     
     # Add matrix of posterior high-level class membership probabilities for low-level units after marginalizing over low-level classes
     out$mSumPX = output$mSumPX
     colnames(out$mSumPX) = colnames(out$mPi)
+    if(dataout){
+      
+      out$mSumPX            = cbind(data,out$mSumPX)
+      rownames(out$mSumPX)  = NULL
+      
+    }
     
     # Add matrix of posterior high-level class membership probabilities for high-level units
     out$mPW           = output$mPW
@@ -1775,10 +1849,22 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     # Add matrix of posterior high-level class membership probabilities for low-level units
     out$mPW_N           = output$mPW_N
     colnames(out$mPW_N) = colnames(out$mPi)
+    if(dataout){
+      
+      out$mPW_N            = cbind(data,out$mPW_N)
+      rownames(out$mPW_N)  = NULL
+      
+    }
     
     # Add matrix of posterior low-level class membership probabilities for low-level units after marginalizing over high-level classes
     out$mPMsumX           = output$mPMsumX
     colnames(out$mPMsumX) = colnames(out$mPhi)
+    if(dataout){
+      
+      out$mPMsumX            = cbind(data,out$mPMsumX)
+      rownames(out$mPMsumX)  = NULL
+      
+    }
     
     # Add low-level entropy R-sqr
     out$R2entr_low = output$R2entr_low
@@ -1925,7 +2011,7 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     out$LLKSeries = output$LLKSeries
     
     # Add specification
-    out$spec            = as.matrix("Multilevel LC model with low-level covariates")
+    out$spec            = as.matrix("Multilevel LC model with lower-level covariates")
     rownames(out$spec)  = colnames(out$spec) = ""
     
   } else{
@@ -1954,19 +2040,60 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     
     # Add cube of joint posterior class membership probabilities
     out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL,paste0("C",1:iT,",G"),colnames(out$mPi_avg)))
+    if(dataout){
+      
+      data            = cbind(mY,id_high,mZ)
+      rownames(data)  = NULL
+      colnames(data)  = c(Y,id_high_name,Z)
+      for(i in 1:length(id_high_levs)){
+        data[data[,id_high_name]==i,id_high_name] = id_high_levs[i]
+      }
+      data            = data[,-which(colnames(data)=="Intercept"),drop=FALSE]
+      out$cPMX        = array(unlist(lapply(1:dim(out$cPMX)[3],function(x){cbind(data,out$cPMX[,,x])})),
+                              c(dim(out$cPMX)[1],ncol(data)+ncol(out$cPMX),dim(out$cPMX)[3]),
+                              dimnames=list(dimnames(out$cPMX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cPMX)[[2]]),dimnames(out$cPMX)[[3]]))
+      
+    }
     
     # Add cube of log of joint posterior class membership probabilities
-    out$cLogPMX = array(output$cLogPMX, dim(output$cLogPMX), dimnames=dimnames(out$cPMX))
+    out$cLogPMX = array(output$cLogPMX, dim(output$cLogPMX), dimnames=list(NULL,paste0("C",1:iT,",G"),colnames(out$mPi_avg)))
+    if(dataout){
+      
+      out$cLogPMX = array(unlist(lapply(1:dim(out$cLogPMX)[3],function(x){cbind(data,out$cLogPMX[,,x])})),
+                          c(dim(out$cLogPMX)[1],ncol(data)+ncol(out$cLogPMX),dim(out$cLogPMX)[3]),
+                          dimnames=list(dimnames(out$cLogPMX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cLogPMX)[[2]]),dimnames(out$cLogPMX)[[3]]))
+      
+    }
     
     # Add cube of conditional posterior low-level class membership probabilities
-    out$cPX = array(output$cPX, dim(output$cPX), dimnames=list(NULL,paste0("C",1:iT,"|G"),colnames(out$mPi_avg)))
+    out$cPX = array(output$cPX, dim(output$cPX),dimnames=list(NULL,paste0("C",1:iT,"|G"),colnames(out$mPi_avg)))
+    if(dataout){
+      
+      out$cPX = array(unlist(lapply(1:dim(out$cPX)[3],function(x){cbind(data,out$cPX[,,x])})),
+                      c(dim(out$cPX)[1],ncol(data)+ncol(out$cPX),dim(out$cPX)[3]),
+                      dimnames=list(dimnames(out$cPX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cPX)[[2]]),dimnames(out$cPX)[[3]]))
+      
+    }
     
     # Add cube of log of conditional posterior low-level class membership probabilities
-    out$cLogPX = array(output$cLogPX,dim(output$cLogPX),dimnames=dimnames(out$cPX))
+    out$cLogPX = array(output$cLogPX,dim(output$cLogPX),dimnames=list(NULL,paste0("C",1:iT,"|G"),colnames(out$mPi_avg)))
+    if(dataout){
+      
+      out$cLogPX = array(unlist(lapply(1:dim(out$cLogPX)[3],function(x){cbind(data,out$cLogPX[,,x])})),
+                         c(dim(out$cLogPX)[1],ncol(data)+ncol(out$cLogPX),dim(out$cLogPX)[3]),
+                         dimnames=list(dimnames(out$cLogPX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cLogPX)[[2]]),dimnames(out$cLogPX)[[3]]))
+      
+    }
     
     # Add matrix of posterior high-level class membership probabilities for low-level units after marginalizing over low-level classes
     out$mSumPX            = output$mSumPX
     colnames(out$mSumPX)  = colnames(out$mPi_avg)
+    if(dataout){
+      
+      out$mSumPX            = cbind(data,out$mSumPX)
+      rownames(out$mSumPX)  = NULL
+      
+    }
     
     # Add matrix of posterior high-level class membership probabilities for high-level units
     out$mPW           = output$mPW
@@ -1981,10 +2108,22 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     # Add matrix of posterior high-level class membership probabilities for low-level units
     out$mPW_N           = output$mPW_N
     colnames(out$mPW_N) = colnames(out$mPi_avg)
+    if(dataout){
+      
+      out$mPW_N            = cbind(data,out$mPW_N)
+      rownames(out$mPW_N)  = NULL
+      
+    }
     
     # Add matrix of posterior low-level class membership probabilities for low-level units after marginalizing over high-level classes
     out$mPMsumX           = output$mPMsumX
     colnames(out$mPMsumX) = colnames(out$mPhi)
+    if(dataout){
+      
+      out$mPMsumX            = cbind(data,out$mPMsumX)
+      rownames(out$mPMsumX)  = NULL
+      
+    }
     
     # Add low-level entropy R-sqr
     out$R2entr_low = output$R2entr_low
@@ -2084,19 +2223,8 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
     
     # Add specification
-    out$spec            = as.matrix("Multilevel LC model with low-level covariates")
+    out$spec            = as.matrix("Multilevel LC model with lower-level covariates")
     rownames(out$spec)  = colnames(out$spec) = ""
-    
-  }
-  if(dataout){
-    
-    out$data            = cbind(mY,id_high,mZ)
-    rownames(out$data)  = NULL
-    colnames(out$data)  = c(Y,id_high_name,Z)
-    for(i in 1:length(id_high_levs)){
-      out$data[out$data[,id_high_name]==i,id_high_name] = id_high_levs[i]
-    }
-    out$data            = out$data[,-which(colnames(out$data)=="Intercept"),drop=FALSE]
     
   }
   return(out)
@@ -2166,7 +2294,7 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     out$LLKSeries = output$LLKSeries
     
     # Add specification
-    out$spec            = as.matrix("Multilevel LC model with low- and high-level covariates")
+    out$spec            = as.matrix("Multilevel LC model with lower- and higher-level covariates")
     rownames(out$spec)  = colnames(out$spec) = ""
     
   } else{
@@ -2198,38 +2326,105 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     colnames(out$mPhi)  = paste0("C",1:iT)
     
     # Add cube of joint posterior class membership probabilities
-    out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL,paste0("C",1:iT,",G"), paste0("G", 1:iM)))
+    out$cPMX = array(output$cPMX,dim(output$cPMX),dimnames=list(NULL,paste0("C",1:iT,",G"),paste0("G", 1:iM)))
+    if(dataout){
+      
+      data_low            = cbind(mY,id_high,mZ)
+      rownames(data_low)  = NULL
+      colnames(data_low)  = c(Y,id_high_name,Z)
+      for(i in 1:length(id_high_levs)){
+        data_low[data_low[,id_high_name]==i,id_high_name] = id_high_levs[i]
+      }
+      data_low            = data_low[,-which(colnames(data_low)=="Intercept"),drop=FALSE]
+      out$cPMX            = array(unlist(lapply(1:dim(out$cPMX)[3],function(x){cbind(data_low,out$cPMX[,,x])})),
+                                  c(dim(out$cPMX)[1],ncol(data_low)+ncol(out$cPMX),dim(out$cPMX)[3]),
+                                  dimnames=list(dimnames(out$cPMX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cPMX)[[2]]),dimnames(out$cPMX)[[3]]))
+      
+    }
     
     # Add cube of log of joint posterior class membership probabilities
-    out$cLogPMX = array(output$cLogPMX,dim(output$cLogPMX),dimnames=dimnames(out$cPMX))
+    out$cLogPMX = array(output$cLogPMX,dim(output$cLogPMX),dimnames=list(NULL,paste0("C",1:iT,",G"),paste0("G", 1:iM)))
+    if(dataout){
+      
+      out$cLogPMX = array(unlist(lapply(1:dim(out$cLogPMX)[3],function(x){cbind(data_low,out$cLogPMX[,,x])})),
+                          c(dim(out$cLogPMX)[1],ncol(data_low)+ncol(out$cLogPMX),dim(out$cLogPMX)[3]),
+                          dimnames=list(dimnames(out$cLogPMX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cLogPMX)[[2]]),dimnames(out$cLogPMX)[[3]]))
+      
+    }
     
     # Add cube of conditional posterior low-level class membership probabilities
     out$cPX = array(output$cPX,dim(output$cPX),dimnames=list(NULL,paste0("C", 1:iT,"|G"),paste0("G", 1:iM)))
+    if(dataout){
+      
+      out$cPX = array(unlist(lapply(1:dim(out$cPX)[3],function(x){cbind(data_low,out$cPX[,,x])})),
+                      c(dim(out$cPX)[1],ncol(data_low)+ncol(out$cPX),dim(out$cPX)[3]),
+                      dimnames=list(dimnames(out$cPX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cPX)[[2]]),dimnames(out$cPX)[[3]]))
+      
+    }
     
     # Add cube of log of conditional posterior low-level class membership probabilities
-    out$cLogPX = array(output$cLogPX,dim(output$cLogPX),dimnames=dimnames(out$cPX))
+    out$cLogPX = array(output$cLogPX,dim(output$cLogPX),dimnames=list(NULL,paste0("C", 1:iT,"|G"),paste0("G", 1:iM)))
+    if(dataout){
+      
+      out$cLogPX = array(unlist(lapply(1:dim(out$cLogPX)[3],function(x){cbind(data_low,out$cLogPX[,,x])})),
+                         c(dim(out$cLogPX)[1],ncol(data_low)+ncol(out$cLogPX),dim(out$cLogPX)[3]),
+                         dimnames=list(dimnames(out$cLogPX)[[1]],c(Y,id_high_name,Z[-1],dimnames(out$cLogPX)[[2]]),dimnames(out$cLogPX)[[3]]))
+      
+    }
     
     # Add matrix of posterior high-level class membership probabilities for low-level units after marginalizing over low-level classes
     out$mSumPX            = output$mSumPX
     colnames(out$mSumPX)  = colnames(out$mPi_avg)
+    if(dataout){
+      
+      out$mSumPX            = cbind(data_low,out$mSumPX)
+      rownames(out$mSumPX)  = NULL
+      
+    }
     
     # Add matrix of posterior high-level class membership probabilities for high-level units
     out$mPW           = output$mPW
     rownames(out$mPW) = id_high_levs
     colnames(out$mPW) = colnames(out$mPi_avg)
+    if(dataout){
+      
+      data_high           = mZh
+      rownames(data_high) = id_high_levs
+      colnames(data_high) = Zh
+      data_high           = data_high[,-which(colnames(data_high)=="Intercept"),drop=FALSE]
+      out$mPW             = cbind(data_high,out$mPW)
+      
+    }
     
     # Add matrix of log of posterior high-level class membership probabilities for high-level units
     out$mlogPW            = output$mlogPW
     rownames(out$mlogPW)  = id_high_levs
     colnames(out$mlogPW)  = colnames(out$mPi_avg)
+    if(dataout){
+      
+      out$mlogPW = cbind(data_high,out$mlogPW)
+      
+    }
     
     # Add matrix of posterior high-level class membership probabilities for low-level units
     out$mPW_N           = output$mPW_N
     colnames(out$mPW_N) = colnames(out$mPi_avg)
+    if(dataout){
+      
+      out$mPW_N            = cbind(data_low,out$mPW_N)
+      rownames(out$mPW_N)  = NULL
+      
+    }
     
     # Add matrix of posterior low-level class membership probabilities for low-level units after marginalizing over high-level classes
     out$mPMsumX           = output$mPMsumX
     colnames(out$mPMsumX) = colnames(out$mPhi)
+    if(dataout){
+      
+      out$mPMsumX            = cbind(data_low,out$mPMsumX)
+      rownames(out$mPMsumX)  = NULL
+      
+    }
     
     # Add low-level entropy R-sqr
     out$R2entr_low = output$R2entr_low
@@ -2342,23 +2537,8 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
     
     # Add specification
-    out$spec            = as.matrix("Multilevel LC model with low- and high-level covariates")
+    out$spec            = as.matrix("Multilevel LC model with lower- and higher-level covariates")
     rownames(out$spec)  = colnames(out$spec) = ""
-    
-  }
-  if(dataout){
-    
-    out$data_low            = cbind(mY,id_high,mZ)
-    rownames(out$data_low)  = NULL
-    colnames(out$data_low)  = c(Y,id_high_name,Z)
-    for(i in 1:length(id_high_levs)){
-      out$data_low[out$data_low[,id_high_name]==i,id_high_name] = id_high_levs[i]
-    }
-    out$data_low            = out$data_low[,-which(colnames(out$data_low)=="Intercept"),drop=FALSE]
-    out$data_high           = mZh
-    rownames(out$data_high) = id_high_levs
-    colnames(out$data_high) = Zh
-    out$data_high           = out$data_high[,-which(colnames(out$data_high)=="Intercept"),drop=FALSE]
     
   }
   return(out)
@@ -2630,7 +2810,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
       
       if(any(duplicated(as.list(data[,Z])))){
         
-        stop("Duplicate low-level covariates.",call.=FALSE)
+        stop("Duplicate lower-level covariates.",call.=FALSE)
         
       }
       
@@ -2643,7 +2823,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
       
       if(any(duplicated(as.list(data[,Zh])))){
         
-        stop("Duplicate high-level covariates.",call.=FALSE)
+        stop("Duplicate higher-level covariates.",call.=FALSE)
         
       }
       
@@ -2661,7 +2841,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
     
     if(any(apply(data[,Z,drop=FALSE],2,function(x){length(unique(x))==1}))){
       
-      stop("Constant in low-level covariates.",call.=FALSE)
+      stop("Constant in lower-level covariates.",call.=FALSE)
       
     }
     
@@ -2670,7 +2850,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
     
     if(any(apply(data[,Zh,drop=FALSE],2,function(x){length(unique(x))==1}))){
       
-      stop("Constant in high-level covariates.",call.=FALSE)
+      stop("Constant in higher-level covariates.",call.=FALSE)
       
     }
     
@@ -2833,10 +3013,10 @@ print.multiLCA = function(x,...){
     cat("\n---------------------------\n")
     cat("\nLOGISTIC MODEL FOR CLASS MEMBERSHIP:\n\n")
     
-    gammas  = format(round(as.matrix(x$cGamma), 4), nsmall = 4)
-    SE      = format(round(as.matrix(x$SEs_cor_gamma), 4), nsmall = 4)
-    Zscore  = format(round(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma), 4), nsmall = 4)
-    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma)))), 4), nsmall = 4)
+    gammas  = format(round(as.matrix(x$cGamma), 4), nsmall = 4, scientific = FALSE)
+    SE      = format(round(as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
+    Zscore  = format(round(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
+    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma)))), 4), nsmall = 4, scientific = FALSE)
     psignf  = matrix("   ", nrow(gammas), ncol(gammas))
     psignf[pval < 0.1 & pval >= 0.05]   = "*  "
     psignf[pval < 0.05 & pval >= 0.01]  = "** "
@@ -2846,7 +3026,7 @@ print.multiLCA = function(x,...){
       
       C = paste0("C", 1 + i)
       logit_params = noquote(cbind(gammas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
-      colnames(logit_params) = c("Beta", "S.E.", "Z-score", "p-value")
+      colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
       rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma)), 1, nchar(rownames(as.matrix(x$cGamma))) - 1), 1 + i, ")")
       
       cat("\nMODEL FOR", C, "(BASE C1)\n\n")
@@ -2889,11 +3069,11 @@ print.multiLCA = function(x,...){
     
     print(noquote(stat), right = TRUE)
     
-  } else if(x$spec == "Multilevel LC model with low-level covariates"){
+  } else if(x$spec == "Multilevel LC model with lower-level covariates"){
     
-    #############################################################
-    ### Multilevel structural model with low-level covariates ###
-    #############################################################
+    ###############################################################
+    ### Multilevel structural model with lower-level covariates ###
+    ###############################################################
     
     cat("\nCALL:\n")
     print(x$call)
@@ -2924,14 +3104,14 @@ print.multiLCA = function(x,...){
     cat("\n")
     
     cat("\n---------------------------\n")
-    cat("\nLOGISTIC MODEL FOR LOW-LEVEL CLASS MEMBERSHIP:\n\n")
+    cat("\nLOGISTIC MODEL FOR LOWER-LEVEL CLASS MEMBERSHIP:\n\n")
     
     for (i in 1:dim(x$cGamma)[3]){
       
-      gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4)
-      SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4)
-      Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4)
-      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4)
+      gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+      SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+      Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4, scientific = FALSE)
       psignf  = matrix("   ", nrow(gammas), ncol(gammas))
       psignf[pval < 0.1 & pval >= 0.05]   = "*  "
       psignf[pval < 0.05 & pval >= 0.01]  = "** "
@@ -2955,11 +3135,11 @@ print.multiLCA = function(x,...){
       
     }
     
-  } else if(x$spec == "Multilevel LC model with low- and high-level covariates"){
+  } else if(x$spec == "Multilevel LC model with lower- and higher-level covariates"){
     
-    #######################################################################
-    ### Multilevel structural model with low- and high-level covariates ###
-    #######################################################################
+    #########################################################################
+    ### Multilevel structural model with low- and higher-level covariates ###
+    #########################################################################
     
     cat("\nCALL:\n")
     print(x$call)
@@ -2990,12 +3170,12 @@ print.multiLCA = function(x,...){
     cat("\n")
     
     cat("\n---------------------------\n")
-    cat("\nLOGISTIC MODEL FOR HIGH-LEVEL CLASS MEMBERSHIP:\n\n")
+    cat("\nLOGISTIC MODEL FOR HIGHER-LEVEL CLASS MEMBERSHIP:\n\n")
     
-    alphas  = format(round(as.matrix(x$mAlpha), 4), nsmall = 4)
-    SE      = format(round(as.matrix(x$SEs_cor_alpha), 4), nsmall = 4)
-    Zscore  = format(round(as.matrix(x$mAlpha)/as.matrix(x$SEs_cor_alpha), 4), nsmall = 4)
-    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$mAlpha)/as.matrix(x$SEs_cor_alpha)))), 4), nsmall = 4)
+    alphas  = format(round(as.matrix(x$mAlpha), 4), nsmall = 4, scientific = FALSE)
+    SE      = format(round(as.matrix(x$SEs_cor_alpha), 4), nsmall = 4, scientific = FALSE)
+    Zscore  = format(round(as.matrix(x$mAlpha)/as.matrix(x$SEs_cor_alpha), 4), nsmall = 4, scientific = FALSE)
+    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$mAlpha)/as.matrix(x$SEs_cor_alpha)))), 4), nsmall = 4, scientific = FALSE)
     psignf  = matrix("   ", nrow(alphas), ncol(alphas))
     psignf[pval < 0.1 & pval >= 0.05]   = "*  "
     psignf[pval < 0.05 & pval >= 0.01]  = "** "
@@ -3017,14 +3197,14 @@ print.multiLCA = function(x,...){
     }
     
     cat("\n---------------------------\n")
-    cat("\nLOGISTIC MODEL FOR LOW-LEVEL CLASS MEMBERSHIP:\n\n")
+    cat("\nLOGISTIC MODEL FOR LOWER-LEVEL CLASS MEMBERSHIP:\n\n")
     
     for (i in 1:dim(x$cGamma)[3]){
       
-      gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4)
-      SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4)
-      Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4)
-      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4)
+      gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+      SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+      Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4, scientific = FALSE)
       psignf  = matrix("   ", nrow(gammas), ncol(gammas))
       psignf[pval < 0.1 & pval >= 0.05]   = "*  "
       psignf[pval < 0.05 & pval >= 0.01]  = "** "
@@ -3052,7 +3232,7 @@ print.multiLCA = function(x,...){
   
 }
 #
-plot.multiLCA = function(x, horiz = TRUE, clab = NULL, ...){
+plot.multiLCA = function(x, horiz = FALSE, clab = NULL, ...){
   
   out = NULL
   
@@ -3092,14 +3272,14 @@ plot.multiLCA = function(x, horiz = TRUE, clab = NULL, ...){
   oldpar = par(no.readonly = TRUE)
   on.exit(par(oldpar))
   par(mar = c(5, 5, 3, 8), xpd = TRUE)
-  plot(items, x$mPhi[,1], type = "b", xaxt = "n", pch = 1, 
+  plot(items, x$mPhi[,1], type = "b", xaxt = "n",yaxt = "n", pch = 1, 
        xlab = "", ylab = "Response probability", frame.plot = FALSE, ylim = c(0,1), lty = 1, ...)
   axis(1, at = items, labels = itemnames, las = las)
+  axis(2, las = 1)
   for(h in 2:iT){
     lines(items, x$mPhi[,h], pch = h, type = "b", lty = h)
   }
   legend("topright", legend = legend, inset = c(-0.4,0),
          lty = (1:iT), pch = 1:iT, cex = 0.8)
-  
   
 }
