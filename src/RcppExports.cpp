@@ -74,23 +74,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// LCA_poly
-List LCA_poly(arma::mat mY, int iK, arma::mat mU, arma::ivec ivItemcat, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_LCA_poly(SEXP mYSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP ivItemcatSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::mat >::type mY(mYSEXP);
-    Rcpp::traits::input_parameter< int >::type iK(iKSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type mU(mUSEXP);
-    Rcpp::traits::input_parameter< arma::ivec >::type ivItemcat(ivItemcatSEXP);
-    Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
-    Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
-    Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(LCA_poly(mY, iK, mU, ivItemcat, maxIter, tol, reord));
-    return rcpp_result_gen;
-END_RCPP
-}
 // LCA_fast_poly
 List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, int maxIter, double tol, int reord);
 RcppExport SEXP _multilevLCA_LCA_fast_poly(SEXP mYSEXP, SEXP ivFreqSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP ivItemcatSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
@@ -591,55 +574,11 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// rcpparma_hello_world
-arma::mat rcpparma_hello_world();
-RcppExport SEXP _multilevLCA_rcpparma_hello_world() {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(rcpparma_hello_world());
-    return rcpp_result_gen;
-END_RCPP
-}
-// rcpparma_outerproduct
-arma::mat rcpparma_outerproduct(const arma::colvec& x);
-RcppExport SEXP _multilevLCA_rcpparma_outerproduct(SEXP xSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::colvec& >::type x(xSEXP);
-    rcpp_result_gen = Rcpp::wrap(rcpparma_outerproduct(x));
-    return rcpp_result_gen;
-END_RCPP
-}
-// rcpparma_innerproduct
-double rcpparma_innerproduct(const arma::colvec& x);
-RcppExport SEXP _multilevLCA_rcpparma_innerproduct(SEXP xSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::colvec& >::type x(xSEXP);
-    rcpp_result_gen = Rcpp::wrap(rcpparma_innerproduct(x));
-    return rcpp_result_gen;
-END_RCPP
-}
-// rcpparma_bothproducts
-Rcpp::List rcpparma_bothproducts(const arma::colvec& x);
-RcppExport SEXP _multilevLCA_rcpparma_bothproducts(SEXP xSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::colvec& >::type x(xSEXP);
-    rcpp_result_gen = Rcpp::wrap(rcpparma_bothproducts(x));
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_multilevLCA_semisup_LCAcov_includeall", (DL_FUNC) &_multilevLCA_semisup_LCAcov_includeall, 13},
     {"_multilevLCA_LCA_fast_includeall", (DL_FUNC) &_multilevLCA_LCA_fast_includeall, 8},
     {"_multilevLCA_LCAcov_poly", (DL_FUNC) &_multilevLCA_LCAcov_poly, 12},
-    {"_multilevLCA_LCA_poly", (DL_FUNC) &_multilevLCA_LCA_poly, 7},
     {"_multilevLCA_LCA_fast_poly", (DL_FUNC) &_multilevLCA_LCA_fast_poly, 8},
     {"_multilevLCA_LCA_LLK", (DL_FUNC) &_multilevLCA_LCA_LLK, 3},
     {"_multilevLCA_LCA_LLK_j", (DL_FUNC) &_multilevLCA_LCA_LLK_j, 3},
@@ -670,10 +609,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_multilevLCA_MLTLCA_cov_LLK_j", (DL_FUNC) &_multilevLCA_MLTLCA_cov_LLK_j, 6},
     {"_multilevLCA_MLTLCA_LLK", (DL_FUNC) &_multilevLCA_MLTLCA_LLK, 5},
     {"_multilevLCA_MLTLCA_LLK_j", (DL_FUNC) &_multilevLCA_MLTLCA_LLK_j, 5},
-    {"_multilevLCA_rcpparma_hello_world", (DL_FUNC) &_multilevLCA_rcpparma_hello_world, 0},
-    {"_multilevLCA_rcpparma_outerproduct", (DL_FUNC) &_multilevLCA_rcpparma_outerproduct, 1},
-    {"_multilevLCA_rcpparma_innerproduct", (DL_FUNC) &_multilevLCA_rcpparma_innerproduct, 1},
-    {"_multilevLCA_rcpparma_bothproducts", (DL_FUNC) &_multilevLCA_rcpparma_bothproducts, 1},
     {NULL, NULL, 0}
 };
 

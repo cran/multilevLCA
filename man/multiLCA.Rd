@@ -19,7 +19,7 @@ iM = NULL,
 Z = NULL,
 Zh = NULL,
 extout = FALSE,
-dataout = FALSE,
+dataout = TRUE,
 kmea = TRUE,
 sequential = TRUE,
 numFreeCores = 2,
@@ -59,7 +59,7 @@ verbose = TRUE
      Whether to output extensive model and estimation information. Default: \code{FALSE}.
 }
   \item{dataout}{
-     Whether to match class predictions to the observed data. Default: \code{FALSE}.
+     Whether to match class predictions to the observed data. Default: \code{TRUE}.
 }
   \item{kmea}{
      Whether to compute starting values for single-level model using \eqn{K}-means (\code{TRUE}), which is recommended for algorithmic stability, or \eqn{K}-modes (\code{FALSE}). Default: \code{TRUE}.
@@ -154,7 +154,7 @@ Multilevel model estimation returns (if \code{extout = TRUE}, a subset):
   \item{mPhi}{Response probabilities given the lower-level latent classes}
   \item{cPMX}{Posterior joint class assignment (proportional assignment)}
   \item{cLogPMX}{Log of \code{cPMX}}
-  \item{cPX}{Posterior lower-level class assignment given covariates (proportional assignment)}
+  \item{cPX}{Posterior lower-level class assignment given high-level class membership (proportional assignment)}
   \item{cLogPX}{Log of \code{cPX}}
   \item{mSumPX}{Posterior higher-level class assignment for lower-level units after marginalization over the lower-level classes (proportional assignment)}
   \item{mPW}{Posterior higher-level class assignment for higher-level units (proportional assignment)}
@@ -188,7 +188,7 @@ Multilevel model estimation with lower-level covariates returns (if \code{extout
   \item{mPhi}{Response probabilities given the lower-level latent classes}
   \item{cPMX}{Posterior joint class assignment (proportional assignment)}
   \item{cLogPMX}{Log of \code{cPMX}}
-  \item{cPX}{Posterior lower-level class assignment given covariates (proportional assignment)}
+  \item{cPX}{Posterior lower-level class assignment given high-level class membership (proportional assignment)}
   \item{cLogPX}{Log of \code{cPX}}
   \item{mSumPX}{Posterior higher-level class assignment for lower-level units after marginalization over the lower-level classes (proportional assignment)}
   \item{mPW}{Posterior higher-level class assignment for higher-level units (proportional assignment)}
@@ -230,7 +230,7 @@ Multilevel model estimation with lower- and higher-level covariates returns (if 
   \item{mPhi}{Response probabilities given the lower-level latent classes}
   \item{cPMX}{Posterior joint class assignment (proportional assignment)}
   \item{cLogPMX}{Log of \code{cPMX}}
-  \item{cPX}{Posterior lower-level class assignment given covariates (proportional assignment)}
+  \item{cPX}{Posterior lower-level class assignment given high-level class membership (proportional assignment)}
   \item{cLogPX}{Log of \code{cPX}}
   \item{mSumPX}{Posterior higher-level class assignment for lower-level units after marginalization over the lower-level classes (proportional assignment)}
   \item{mPW}{Posterior higher-level class assignment for higher-level units (proportional assignment)}

@@ -171,7 +171,7 @@ List semisup_LCAcov_includeall(arma::mat mY, arma::mat mZ, arma::mat mDesign, ar
   
   arma::mat mScore = join_rows(mbeta_score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat)/iN;
+  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   
   // Matrix formula
@@ -358,7 +358,7 @@ List LCA_fast_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq, int
   
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat)/iN;
+  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   
@@ -516,16 +516,31 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   int iItemfoo = 0;
   for(k = 0; k < iK; k++){
     iRoll = 0;
+    iItemfoo = 0;
     for(v  = 0; v < iV; v++){
       if(v>0){
-        iItemfoo = sum(ivItemcat.subvec(0,v-1));
-        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
+        if(ivItemcat(v)>2){
+          iItemfoo = sum(ivItemcat.subvec(0,v-1));
+          gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
+          iItemfoo += ivItemcat(v);
+        }else{
+          gamma(iRoll,k) = log(mPhi(iItemfoo,k)/(1.0 - mPhi(iItemfoo,k)));
+          iItemfoo += ivItemcat(v)-1;
+        }
       }else{
-        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
+        if(ivItemcat(v)>2){
+          gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
+          iItemfoo += ivItemcat(v);
+        }else{
+          gamma(iRoll,k) = log(mPhi(0,k)/(1.0 - mPhi(0,k)));
+          iItemfoo += ivItemcat(v)-1;
+        }
       }
       iRoll += (ivItemcat(v)-1);  
     }
   }
+  iItemfoo = 0;
+  
   // 
   // 
   // mbeta is iK-1 x iP+1
@@ -569,27 +584,44 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   
   
   arma::mat mGamma_Score=zeros(iN,nfreepar_res*iK);
+  
   iRoll = 0;
   iItemfoo = 0;
   for(k = 0; k < iK; k++){
-    iRoll = 0;
+    iItemfoo = 0;
     for(v  = 0; v < iV; v++){
       if(v>0){
-        iItemfoo = sum(ivItemcat.subvec(0,v-1));
-        mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
-          repmat(mU.col(k),1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1).t(),iN,1));
+        if(ivItemcat(v)>2){
+          mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+            repmat(mU.col(k),1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2).t(),iN,1));
+          iItemfoo += ivItemcat(v);
+        }else{
+          mGamma_Score.col(iRoll) = mU.col(k)%(mY.col(iItemfoo) - mPhi(iItemfoo,k));
+          iItemfoo += ivItemcat(v)-1;
+        }
+        
       }else{
-        mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
-          repmat(mU.col(k),1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+        if(ivItemcat(v)>2){
+          mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
+            repmat(mU.col(k),1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+          iItemfoo += ivItemcat(v);
+        }else{
+          mGamma_Score.col(iRoll) = mU.col(k)%(mY.col(0) - mPhi(0,k));
+          iItemfoo += ivItemcat(v)-1;
+        }
       }
       iRoll += (ivItemcat(v)-1);  
     }
   } 
+  iItemfoo = 0;
+  
+  
+  
   // Expected information matrix 
   
   arma::mat mScore = join_rows(mbeta_score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat)/iN;
+  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   
   // Matrix formula
@@ -641,166 +673,6 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
 }  
 
 //[[Rcpp::export]]
-List LCA_poly(arma::mat mY, int iK, arma::mat mU, arma::ivec ivItemcat, int maxIter = 1e3, double tol = 1e-8, int reord = 0){
-  // mU must be n*Ti x iK
-  // ivItemcat is the vector of number of categories for each item
-  //
-  int iN    = mY.n_rows;
-  int iH    = mY.n_cols;
-  int iV    = ivItemcat.n_elem;
-  int NT    = iN;
-  int h,j,k,n,p,v;
-  int isize = 1;
-  double size = 1.0;
-  arma::cube mdY = zeros(NT,iK,iV);
-  arma::vec vLLK = zeros(NT,1);
-  arma::mat mPhi(iH,iK);
-  arma::vec pg(iK);
-  arma::vec vHdY(iK);
-  double eps = 1.0;
-  double iter = 0.0;
-  int ifooDcat = 0;
-  arma::vec LLKSeries(maxIter);
-  while(eps > tol && iter<maxIter){
-    vLLK.zeros();
-    // step M
-    for(k = 0; k < iK; k++){
-      pg(k) = mean(mU.col(k));
-      for(h = 0; h < iH; h++){
-        mPhi(h,k) = accu(mU.col(k)%mY.col(h))/accu(mU.col(k));
-        mPhi(h,k) = probcheck(mPhi(h,k));
-      }
-    }
-    
-    pg = OmegaCheck(pg, iK);
-    // step E
-    
-    for(n = 0; n < iN; n++){
-      vHdY.zeros();
-      for(k = 0; k < iK; k++){
-        ifooDcat = 0;
-        for(v = 0; v< iV;v++){
-          if(ivItemcat(v)==2){
-            mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-            ifooDcat += 1;
-          }else{
-            for(p = 0; p < ivItemcat(v); p++){
-              if(mY(n,ifooDcat) > 0.0){
-                mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-              }
-              ifooDcat += 1;
-            }
-          }
-          vHdY(k) += mdY(n,k,v);
-        }
-      }
-      vLLK(n) = MixtDensityScale(pg, vHdY, iK);
-      for(k = 0;k < iK; k++){
-        mU(n,k) = exp(log(pg(k)) + vHdY(k) - vLLK(n));
-      }
-    }
-    
-    LLKSeries(iter) = accu(vLLK);
-    if(iter > 10){
-      eps = abs3(LLKSeries(iter) - LLKSeries(iter-1));
-    }
-    iter +=1;
-  }
-  LLKSeries = LLKSeries.subvec(0, iter - 1);
-  if(reord == 1){
-    arma::vec vPhisum = sum(mPhi).t();
-    arma::uvec order = sort_index(vPhisum,"descending");
-    int ifoo = 0;
-    arma::mat mPhi_sorted = mPhi;
-    arma::vec pg_sorted = pg;
-    arma::mat mU_sorted = mU;
-    for(k=0; k< iK; k++){
-      ifoo               = order(k);
-      mPhi_sorted.col(k) = mPhi.col(ifoo);
-      pg_sorted(k)       = pg(ifoo);
-      mU_sorted.col(k)   = mU.col(ifoo); 
-    }
-    mPhi = mPhi_sorted;
-    pg = pg_sorted;
-    mU = mU_sorted;
-  }
-  arma::vec alphafoo(iK);
-  alphafoo = log(pg/pg(0));
-  arma::vec alpha(iK-1);
-  alpha = alphafoo.subvec(1,iK-1);
-  arma::ivec ivItemcat_red = ivItemcat -1;
-  int nfreepar_res = sum(ivItemcat_red);
-  // 
-  arma::mat gamma = zeros(nfreepar_res,iK);
-  int iRoll = 0;
-  int iItemref = 0;
-  int iItemfoo = 0;
-  for(k = 0; k < iK; k++){
-    iRoll = 0;
-    for(v  = 0; v < iV; v++){
-      if(v>0){
-        iItemfoo = sum(ivItemcat.subvec(0,v-1));
-        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
-      }else{
-        gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
-      }
-      iRoll += (ivItemcat(v)-1);  
-    }
-  }
-  
-  arma::vec parvec = join_cols(alpha,vectorise(gamma));
-  
-  double BIC, AIC;
-  BIC = -2.0*LLKSeries(iter-1) + log(NT)*(nfreepar_res + (iK - 1));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iK - 1));
-  double Terr = accu(-pg%log(pg));
-  arma::mat mlogU = trunc_log(mU);
-  double Perr = mean(sum(-mU%mlogU,1));
-  double R2entr = (Terr - Perr)/Terr;
-  
-  // classification error
-  arma::ivec vModalAssnm(iN);
-  arma::mat mModalAssnm = zeros(iN,iK);
-  for(n=0; n< iN; n++){
-    vModalAssnm(n) = WhichMax(mU.row(n).t());
-    mModalAssnm(n,vModalAssnm(n)) = 1.0;
-  }
-  
-  arma::mat mClassErr     = zeros(iK,iK);
-  arma::mat mClassErrProb = mClassErr;
-  for(j = 0; j < iK; j++){
-    for(k = 0; k < iK; k++){
-      mClassErr(j,k) = accu(mU.col(k)%mModalAssnm.col(j));
-    }
-    mClassErrProb.row(j)=mClassErr.row(j)/accu(mClassErr.row(j));
-  }
-  
-  double dClassErr_tot =  1.0 - (accu(mClassErr.diag())/iN);
-  
-  
-  List EMout;
-  EMout["mU"]            = mU;
-  EMout["mPhi"]          = mPhi;
-  EMout["pg"]            = pg;
-  EMout["alphas"]        = alpha;
-  EMout["gamma"]         = gamma;
-  EMout["LLKSeries"]     = LLKSeries;
-  EMout["eps"]           = eps;
-  EMout["iter"]          = iter;
-  EMout["BIC"]           = BIC;
-  EMout["AIC"]           = AIC;
-  EMout["R2entr"]        = R2entr;
-  EMout["mClassErr"]     = mClassErr;
-  EMout["mClassErrProb"] = mClassErrProb;
-  EMout["dClassErr_tot"] = dClassErr_tot;
-  EMout["vModalAssnm"]   = vModalAssnm;
-  EMout["mModalAssnm"]   = mModalAssnm;
-  EMout["parvec"]    = parvec;
-  
-  return EMout;
-}
-
-//[[Rcpp::export]]
 List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat,  int maxIter = 1e3, double tol = 1e-8, int reord = 0){
   // mY is equal to the number of observed response patterns x iH
   // ivItempos tells the number of categories for each item 
@@ -822,6 +694,7 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
   double iter = 0.0;
   int ifooDcat = 0;
   arma::vec LLKSeries(maxIter);
+  // 
   while(eps > tol && iter<maxIter){
     vLLK.zeros();
     // step M
@@ -887,27 +760,38 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
   alphafoo = log(pg/pg(0));
   arma::vec alpha(iK-1);
   alpha = alphafoo.subvec(1,iK-1);
-  
   arma::ivec ivItemcat_red = ivItemcat -1;
   int nfreepar_res = sum(ivItemcat_red);
   // 
   arma::mat gamma = zeros(nfreepar_res,iK);
   int iRoll = 0;
-  int iItemref = 0;
   int iItemfoo = 0;
   for(k = 0; k < iK; k++){
     iRoll = 0;
+    iItemfoo = 0;
     for(v  = 0; v < iV; v++){
       if(v>0){
+        if(ivItemcat(v)>2){
         iItemfoo = sum(ivItemcat.subvec(0,v-1));
         gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
+        iItemfoo += ivItemcat(v);
+        }else{
+          gamma(iRoll,k) = log(mPhi(iItemfoo,k)/(1.0 - mPhi(iItemfoo,k)));
+          iItemfoo += ivItemcat(v)-1;
+        }
       }else{
+        if(ivItemcat(v)>2){
         gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
+          iItemfoo += ivItemcat(v);
+        }else{
+          gamma(iRoll,k) = log(mPhi(0,k)/(1.0 - mPhi(0,k)));
+          iItemfoo += ivItemcat(v)-1;
+        }
       }
       iRoll += (ivItemcat(v)-1);  
     }
   }
-  
+  iItemfoo = 0;
   arma::vec parvec = join_cols(alpha,vectorise(gamma));
   
   double BIC, AIC;
@@ -939,35 +823,44 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
   
   
   // Computing the score
-  
   arma::mat mPg_Score(iN,iK-1);
   for(k =1; k< iK; k++){
     mPg_Score.col(k-1) = (mU.col(k) - pg(k))%ivFreq;
   }
-  
   arma::mat mGamma_Score=zeros(iN,nfreepar_res*iK);
   iRoll = 0;
   iItemfoo = 0;
   for(k = 0; k < iK; k++){
-    iRoll = 0;
-    iItemref = 0;
+    iItemfoo = 0;
     for(v  = 0; v < iV; v++){
       if(v>0){
-        iItemfoo = sum(ivItemcat.subvec(0,v-1));
+        if(ivItemcat(v)>2){
         mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
-          repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1).t(),iN,1));
+          repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2).t(),iN,1));
+          iItemfoo += ivItemcat(v);
+        }else{
+          mGamma_Score.col(iRoll) = mU.col(k)%ivFreq%(mY.col(iItemfoo) - mPhi(iItemfoo,k));
+          iItemfoo += ivItemcat(v)-1;
+        }
+        
       }else{
+        if(ivItemcat(v)>2){
         mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) = 
-          repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+        repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+          iItemfoo += ivItemcat(v);
+        }else{
+          mGamma_Score.col(iRoll) = mU.col(k)%ivFreq%(mY.col(0) - mPhi(0,k));
+          iItemfoo += ivItemcat(v)-1;
+        }
       }
       iRoll += (ivItemcat(v)-1);  
     }
   } 
-  
+  iItemfoo = 0;
   
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat)/iN;
+  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;
@@ -1217,7 +1110,7 @@ List LCAcov(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat mBeta,
   
   arma::mat mScore = join_rows(mbeta_score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat)/iN;
+  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   
   // Matrix formula
@@ -1525,7 +1418,7 @@ List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, int maxIter
   
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat)/iN;
+  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;

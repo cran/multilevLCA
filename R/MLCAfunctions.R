@@ -3,7 +3,7 @@
 }
 
 multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
-                    extout = FALSE, dataout = FALSE, kmea = TRUE, sequential = TRUE,
+                    extout = FALSE, dataout = TRUE, kmea = TRUE, sequential = TRUE,
                     numFreeCores = 2, maxIter = 1e3, tol = 1e-8,
                     reord = TRUE, fixedpars = 1,
                     NRmaxit = 100, NRtol = 1e-6, verbose = TRUE){
@@ -70,16 +70,16 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       #
       if(is.null(id_high)&is.null(Z)&is.null(Zh)){
         out = LCA_fast_init_poly(mY,iT,ivItemcat,kmea,maxIter,tol,reord)
-        out = clean_output1(out,Y,iT,length(Y),extout,dataout)
+        out = clean_output1(out,Y,iT,length(Y),extout,dataout,ivItemcat)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
         out = LCA_fast_init_wcov_poly(mY,mZ,iT,ivItemcat,kmea,maxIter,tol,fixed,reord,
                                       NRtol,NRmaxit,verbose)
-        out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout)
+        out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
         init  = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
         out   = MLTLCA_poly(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
                             ivItemcat,maxIter,tol,reord)
-        out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+        out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&is.null(Zh)){
         init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
         init2 = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
@@ -105,7 +105,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         #
         out = MLTLCA_cov_poly(mY,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
                               ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
-        out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout)
+        out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&!is.null(Zh)){
         init1   = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
         init2   = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
@@ -136,21 +136,21 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         #
         out = MLTLCA_covlowhigh_poly(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
                                      mStep1Var,ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
-        out = clean_output5(out,Y,iT,iM,c("Intercept",Z),c("Intercept",Zh),mY,mZ,mZh,id_high,length(Y),P,P_high,id_high_levs,id_high_name,extout,dataout)
+        out = clean_output5(out,Y,iT,iM,c("Intercept",Z),c("Intercept",Zh),mY,mZ,mZh,id_high,length(Y),P,P_high,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       }
     } else{
       if(is.null(id_high)&is.null(Z)&is.null(Zh)){
         out = LCA_fast_init(mY,iT,kmea,maxIter,tol,reord)
-        out = clean_output1(out,Y,iT,length(Y),extout,dataout)
+        out = clean_output1(out,Y,iT,length(Y),extout,dataout,ivItemcat)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
         out = LCA_fast_init_wcov(mY,mZ,iT,kmea,maxIter,tol,fixed,reord,
                                  NRtol,NRmaxit,verbose)
-        out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout)
+        out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
         init  = meas_Init(mY,id_high,vNj,iM,iT,kmea)
         out   = MLTLCA(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
                        maxIter,tol,reord)
-        out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+        out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&is.null(Zh)){
         init1 = meas_Init(mY,id_high,vNj,iM,iT,kmea)
         init2 = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
@@ -176,7 +176,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         #
         out = MLTLCA_cov(mY,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
                          maxIter,tol,fixedpars,NRtol,NRmaxit)
-        out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout)
+        out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&!is.null(Zh)){
         init1   = meas_Init(mY,id_high,vNj,iM,iT,kmea)
         init2   = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
@@ -207,7 +207,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         #
         out = MLTLCA_covlowhigh(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
                                 mStep1Var,maxIter,tol,fixedpars,NRtol,NRmaxit)
-        out = clean_output5(out,Y,iT,iM,c("Intercept",Z),c("Intercept",Zh),mY,mZ,mZh,id_high,length(Y),P,P_high,id_high_levs,id_high_name,extout,dataout)
+        out = clean_output5(out,Y,iT,iM,c("Intercept",Z),c("Intercept",Zh),mY,mZ,mZh,id_high,length(Y),P,P_high,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       }
     }
   } else if(approach=="model selection on low"){
@@ -219,7 +219,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout)
+      out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
@@ -230,7 +230,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout)
+      out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     }
@@ -243,7 +243,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+      out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
@@ -254,7 +254,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+      out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     }
@@ -267,7 +267,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iM_best,dimnames=list("iM=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+      out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
@@ -278,7 +278,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iM_best,dimnames=list("iM=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+      out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     }
@@ -302,9 +302,9 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         list_luk = list(step1 = step1mat,step2 = step2mat,step3 = step3mat, optimal = optimal)
         if(out$iM_opt>1){
           out = clean_output3(out$outmuLCA_step3,Y,out$iT_opt,out$iM_opt,mY,id_high,length(Y),
-                              id_high_levs,id_high_name,extout,dataout)
+                              id_high_levs,id_high_name,extout,dataout,ivItemcat)
         } else if(out$iM_opt==1){
-          out = clean_output1(out$outmuLCA_step3,Y,out$iT_opt,length(Y),extout,dataout)
+          out = clean_output1(out$outmuLCA_step3,Y,out$iT_opt,length(Y),extout,dataout,ivItemcat)
         }
         out$model_selection = list_luk
         if(verbose)print(noquote(list_luk))
@@ -326,9 +326,9 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         list_luk = list(step1 = step1mat,step2 = step2mat,step3 = step3mat, optimal = optimal)
         if(out$iM_opt>1){
           out = clean_output3(out$outmuLCA_step3,Y,out$iT_opt,out$iM_opt,mY,id_high,length(Y),
-                              id_high_levs,id_high_name,extout,dataout)
+                              id_high_levs,id_high_name,extout,dataout,ivItemcat)
         } else if(out$iM_opt==1){
-          out = clean_output1(out$outmuLCA_step3,Y,out$iT_opt,length(Y),extout,dataout)
+          out = clean_output1(out$outmuLCA_step3,Y,out$iT_opt,length(Y),extout,dataout,ivItemcat)
         }
         out$model_selection = list_luk
         if(verbose)print(noquote(list_luk))
@@ -394,10 +394,10 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         if(select_mat[r_optimal,2]>1){
           out = clean_output3(simultaneous_out[[r_optimal]]$fit,
                               Y,select_mat[r_optimal,1],select_mat[r_optimal,2],
-                              mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+                              mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
         } else if(select_mat[r_optimal,2]==1){
           out = clean_output1(simultaneous_out[[r_optimal]]$fit,
-                              Y,select_mat[r_optimal,1],length(Y),extout,dataout)
+                              Y,select_mat[r_optimal,1],length(Y),extout,dataout,ivItemcat)
         }
         out$model_selection = list_simul
         if(verbose)print(noquote(list_simul))
@@ -452,10 +452,10 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         if(select_mat[r_optimal,2]>1){
           out = clean_output3(simultaneous_out[[r_optimal]]$fit,
                               Y,select_mat[r_optimal,1],select_mat[r_optimal,2],
-                              mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout)
+                              mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
         } else if(select_mat[r_optimal,2]==1){
           out = clean_output1(simultaneous_out[[r_optimal]]$fit,
-                              Y,select_mat[r_optimal,1],length(Y),extout,dataout)
+                              Y,select_mat[r_optimal,1],length(Y),extout,dataout,ivItemcat)
         }
         out$model_selection = list_simul
         if(verbose)print(noquote(list_simul))
@@ -514,7 +514,7 @@ LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1)
   freq          = mY_aggr[,iHf]
   mY_unique     = mY_aggr[,-iHf]
   if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT)$cluster
+    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
   } else{
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
@@ -539,7 +539,7 @@ LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, f
   freq            = mY_aggr[,iHf]
   mY_unique       = mY_aggr[,-iHf]
   if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT)$cluster
+    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
   } else{
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
@@ -578,7 +578,7 @@ LCA_fast_init_whigh = function(mY, id_high, iT, kmea = T, maxIter = 1e3, tol = 1
   freq      = mY_aggr[,iHf]
   mY_unique = mY_aggr[,-c(iHf-1,iHf)]
   if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT)$cluster
+    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
   } else{
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
@@ -644,7 +644,7 @@ LCA_fast_init_poly = function(mY, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 
   freq          = mY_aggr[,iHf]
   mY_unique     = mY_aggr[,-iHf]
   if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT)$cluster
+    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
   } else{
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
@@ -670,7 +670,7 @@ LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, kmea = T, maxIter = 1e
   freq            = mY_aggr[,iHf]
   mY_unique       = mY_aggr[,-iHf]
   if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT)$cluster
+    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
   } else{
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
@@ -710,7 +710,7 @@ LCA_fast_init_whigh_poly = function(mY, id_high, iT, ivItemcat, kmea = T, maxIte
   freq      = mY_aggr[,iHf]
   mY_unique = mY_aggr[,-c(iHf-1,iHf)]
   if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT)$cluster
+    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
   } else{
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
@@ -1391,7 +1391,7 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbos
 #
 #
 #
-clean_output1 = function(output,Y,iT,iH,extout,dataout){
+clean_output1 = function(output,Y,iT,iH,extout,dataout,ivItemcat){
   if(!extout){
     
     # Create empty list for output
@@ -1430,6 +1430,8 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     rownames(out$spec)  = colnames(out$spec) = ""
     
   } else{
+    
+    Ylab_beta = unlist(lapply(ivItemcat,function(x){if(x==2){TRUE}else{c(FALSE,rep(TRUE,x-1))}}))
     
     # Create empty list for output
     out = list()
@@ -1503,12 +1505,12 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
     
     # Add betas
     out$mBeta           = output$gamma
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    rownames(out$mBeta) = paste0("beta(",Y[Ylab_beta],"|C)")
     colnames(out$mBeta) = colnames(out$mPhi)
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(rownames(out$vGamma),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    rownames(out$parvec)  = c(rownames(out$vGamma),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
     colnames(out$parvec)  = ""
     
     # Add vector of standard errors
@@ -1540,7 +1542,7 @@ clean_output1 = function(output,Y,iT,iH,extout,dataout){
   }
   return(out)
 }
-clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
+clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout,ivItemcat){
   mY      = output$mY
   mZ      = output$mZ
   output  = output$outcov
@@ -1592,6 +1594,8 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
     rownames(out$spec)  = colnames(out$spec) = ""
     
   } else{
+    
+    Ylab_beta = unlist(lapply(ivItemcat,function(x){if(x==2){TRUE}else{c(FALSE,rep(TRUE,x-1))}}))
     
     # Create empty list for output
     out = list()
@@ -1653,12 +1657,12 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
     
     # Add betas
     out$mBeta           = output$gamma
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    rownames(out$mBeta) = paste0("beta(",Y[Ylab_beta],"|C)")
     colnames(out$mBeta) = colnames(out$mPhi)
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$cGamma),1,nchar(rownames(out$cGamma))-2),iT-1),rep(colnames(out$cGamma),rep(P,iT-1)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$cGamma),1,nchar(rownames(out$cGamma))-2),iT-1),rep(colnames(out$cGamma),rep(P,iT-1)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
     colnames(out$parvec)  = ""
     
     # Add vector of uncorrected standard errors
@@ -1708,7 +1712,7 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout){
   }
   return(out)
 }
-clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,extout,dataout){
+clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,extout,dataout,ivItemcat){
   if(!extout){
     
     # Create empty list for output
@@ -1761,6 +1765,8 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     rownames(out$spec)  = colnames(out$spec) = ""
     
   } else{
+    
+    Ylab_beta = unlist(lapply(ivItemcat,function(x){if(x==2){TRUE}else{c(FALSE,rep(TRUE,x-1))}}))
     
     # Create empty list for output
     out = list()
@@ -1899,12 +1905,12 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     
     # Add betas
     out$mBeta           = output$mBeta
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    rownames(out$mBeta) = paste0("beta(",Y[Ylab_beta],"|C)")
     colnames(out$mBeta) = colnames(out$mPhi)
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(rep(substr(rownames(out$mGamma),1,nchar(rownames(out$mGamma))-2),iM),rep(colnames(out$mGamma),rep(iT-1,iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(rep(substr(rownames(out$mGamma),1,nchar(rownames(out$mGamma))-2),iM),rep(colnames(out$mGamma),rep(iT-1,iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
     colnames(out$parvec)  = ""
     
     # Add vector of standard errors
@@ -1943,19 +1949,9 @@ clean_output3 = function(output,Y,iT,iM,mY,id_high,iH,id_high_levs,id_high_name,
     rownames(out$spec)  = colnames(out$spec) = ""
     
   }
-  if(dataout){
-    
-    out$data            = cbind(mY,id_high)
-    rownames(out$data)  = NULL
-    colnames(out$data)  = c(Y,id_high_name)
-    for(i in 1:length(id_high_levs)){
-      out$data[out$data[,id_high_name]==i,id_high_name] = id_high_levs[i]
-    }
-    
-  }
   return(out)
 }
-clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_high_name,extout,dataout){
+clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_high_name,extout,dataout,ivItemcat){
   if(!extout){
     
     # Create empty list for output
@@ -2015,6 +2011,8 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     rownames(out$spec)  = colnames(out$spec) = ""
     
   } else{
+    
+    Ylab_beta = unlist(lapply(ivItemcat,function(x){if(x==2){TRUE}else{c(FALSE,rep(TRUE,x-1))}}))
     
     # Create empty list for output
     out = list()
@@ -2156,12 +2154,12 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     
     # Add betas
     out$mBeta           = output$mBeta
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    rownames(out$mBeta) = paste0("beta(",Y[Ylab_beta],"|C)")
     colnames(out$mBeta) = colnames(out$mPhi)
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
     colnames(out$parvec)  = ""
     
     # Add vector of uncorrected standard errors
@@ -2229,7 +2227,7 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
   }
   return(out)
 }
-clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_high_levs,id_high_name,extout,dataout){
+clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_high_levs,id_high_name,extout,dataout,ivItemcat){
   if(!extout){
     
     # Create empty list for output
@@ -2298,6 +2296,8 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     rownames(out$spec)  = colnames(out$spec) = ""
     
   } else{
+    
+    Ylab_beta = unlist(lapply(ivItemcat,function(x){if(x==2){TRUE}else{c(FALSE,rep(TRUE,x-1))}}))
     
     # Create empty list for output
     out = list()
@@ -2457,12 +2457,12 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     
     # Add betas
     out$mBeta           = output$mBeta
-    rownames(out$mBeta) = paste0("beta(",Y,"|C)")
+    rownames(out$mBeta) = paste0("beta(",Y[Ylab_beta],"|C)")
     colnames(out$mBeta) = colnames(out$mPhi)
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(iH,iT)),")"))
+    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
     colnames(out$parvec)  = ""
     
     # Add vector of uncorrected standard errors

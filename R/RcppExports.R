@@ -13,10 +13,6 @@ LCAcov_poly <- function(mY, mZ, iK, mPhi, mBeta, mStep1Var, ivItemcat, fixed = 0
     .Call('_multilevLCA_LCAcov_poly', PACKAGE = 'multilevLCA', mY, mZ, iK, mPhi, mBeta, mStep1Var, ivItemcat, fixed, maxIter, tol, NRtol, NRmaxit)
 }
 
-LCA_poly <- function(mY, iK, mU, ivItemcat, maxIter = 1e3L, tol = 1e-8, reord = 0L) {
-    .Call('_multilevLCA_LCA_poly', PACKAGE = 'multilevLCA', mY, iK, mU, ivItemcat, maxIter, tol, reord)
-}
-
 LCA_fast_poly <- function(mY, ivFreq, iK, mU, ivItemcat, maxIter = 1e3L, tol = 1e-8, reord = 0L) {
     .Call('_multilevLCA_LCA_fast_poly', PACKAGE = 'multilevLCA', mY, ivFreq, iK, mU, ivItemcat, maxIter, tol, reord)
 }
@@ -135,21 +131,5 @@ MLTLCA_LLK <- function(parvec, mY, vNj, iM, iT) {
 
 MLTLCA_LLK_j <- function(parvec, mY, vNj, iM, iT) {
     .Call('_multilevLCA_MLTLCA_LLK_j', PACKAGE = 'multilevLCA', parvec, mY, vNj, iM, iT)
-}
-
-rcpparma_hello_world <- function() {
-    .Call('_multilevLCA_rcpparma_hello_world', PACKAGE = 'multilevLCA')
-}
-
-rcpparma_outerproduct <- function(x) {
-    .Call('_multilevLCA_rcpparma_outerproduct', PACKAGE = 'multilevLCA', x)
-}
-
-rcpparma_innerproduct <- function(x) {
-    .Call('_multilevLCA_rcpparma_innerproduct', PACKAGE = 'multilevLCA', x)
-}
-
-rcpparma_bothproducts <- function(x) {
-    .Call('_multilevLCA_rcpparma_bothproducts', PACKAGE = 'multilevLCA', x)
 }
 
