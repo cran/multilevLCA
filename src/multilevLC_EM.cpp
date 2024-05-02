@@ -609,11 +609,11 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   
   double BIClow;
   double BIChigh;
-  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
   
   double AIC;
-  AIC = -2.0*LLKSeries(iter-1) + 2.0*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  AIC = -2.0*LLKSeries(iter-1) + 2.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
   
   // computing log-linear parameters
   arma::vec vPW = mean(mPW).t();
@@ -1017,9 +1017,9 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   double BIClow;
   double BIChigh;
   double AIC;
-  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
-  AIC     = -2.0*LLKSeries(iter-1) + 2.0*(nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
+  AIC     = -2.0*LLKSeries(iter-1) + 2.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0));
   
   // computing log-linear parameters
   arma::vec vDeltafoo(iM);
@@ -1393,9 +1393,9 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
   double BIClow;
   double BIChigh;
   double AIC;
-  BIClow = -2.0*LLKSeries(iter-1) + log(iN)*(nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*(nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
+  BIClow = -2.0*LLKSeries(iter-1) + log(iN)*1.0*(iT*nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*1.0*(iT*nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
+  AIC = -2.0*LLKSeries(iter-1) + 2.0*(iT*nfreepar_res + (iT - 1.0)*iM + (iM - 1.0));
   
   // computing log-linear parameters
   arma::vec vDeltafoo(iM);

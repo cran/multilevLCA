@@ -548,8 +548,8 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   arma::vec parvec = join_cols(vectorise(mbeta.t()),vectorise(gamma));
   
   double BIC,AIC;
-  BIC = -2.0*LLKSeries(iter-1) + log(NT)*(nfreepar_res + (iK - 1));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iK - 1));
+  BIC = -2.0*LLKSeries(iter-1) + log(NT)*1.0*(iK*nfreepar_res + (iK - 1));
+  AIC = -2.0*LLKSeries(iter-1) + 2.0*(iK*nfreepar_res + (iK - 1));
   // double Terr = accu(-mPg%log(mPg));
   arma::vec vPg = mean(mU).t();
   double Terr = accu(-vPg%log(vPg));
@@ -795,8 +795,8 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
   arma::vec parvec = join_cols(alpha,vectorise(gamma));
   
   double BIC, AIC;
-  BIC = -2.0*LLKSeries(iter-1) + log(iNtot)*(nfreepar_res + (iK - 1));
-  AIC = -2.0*LLKSeries(iter-1) + 2*(nfreepar_res + (iK - 1));
+  BIC = -2.0*LLKSeries(iter-1) + log(iNtot)*(iK*nfreepar_res + (iK - 1));
+  AIC = -2.0*LLKSeries(iter-1) + 2*(iK*nfreepar_res + (iK - 1));
   double Terr = accu(-pg%log(pg));
   arma::mat mlogU = trunc_log(mU);
   double Perr = sum(sum(-mU%mlogU,1)%ivFreq)/iNtot;
