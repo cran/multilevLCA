@@ -360,7 +360,7 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   // fixedpars = 2 for two-stage (fixing vOmega and mPhi, estimated using MLTLCA)
   
   int iV    = ivItemcat.n_elem;
-  int l,n,j,k,m,t,p,v;
+  int n,j,k,m,t,p,v;
   int isize = 1;
   double size = 1.0;
   int iN = mY.n_rows;
@@ -641,7 +641,6 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   arma::mat mBeta = zeros(nfreepar_res,iT);
   int iRoll = 0;
   int iItemfoo = 0;
-  int iItemref = 0;
   for(t = 0; t < iT; t++){
     iRoll = 0;
     for(v  = 0; v < iV; v++){
@@ -794,7 +793,7 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   // fixedpars = 2 for two-stage (fixing vOmega and mPhi, estimated using MLTLCA)
   
   int iV    = ivItemcat.n_elem;
-  int n,j,k,l,m,t,p,v;
+  int n,j,k,m,t,p,v;
   int isize = 1;
   double size = 1.0;
   int iN = mY.n_rows;
@@ -1050,7 +1049,6 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   ICL_BIChigh = BIChigh + 2.0*Perr_high;
   arma::mat mBeta = zeros(nfreepar_res,iT);
   int iRoll = 0;
-  int iItemref = 0;
   int iItemfoo = 0;
   for(t = 0; t < iT; t++){
     iRoll = 0;
@@ -1433,7 +1431,6 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
   arma::mat mBeta = zeros(nfreepar_res,iT);
   // 
   int iRoll = 0;
-  int iItemref = 0;
   int iItemfoo = 0;
   for(t = 0; t < iT; t++){
     iRoll = 0;

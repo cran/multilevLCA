@@ -138,11 +138,11 @@ Single-level model estimation with covariates returns (if \code{extout = TRUE}, 
   \item{mBeta}{Intercepts in logistic parametrization for response probabilities}
   \item{parvec}{Vector of logistic parameters}
   \item{SEs_unc}{Uncorrected standard errors}
-  \item{SEs_cor}{Corrected standard errors}
-  \item{SEs_cor_gamma}{Corrected standard errors only for the gammas}
+  \item{SEs_cor}{Corrected standard errors (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
+  \item{SEs_cor_gamma}{Corrected standard errors only for the gammas (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{mQ}{Cross-derivatives for asymptotic standard error correction in two-step estimation (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{Varmat_unc}{Uncorrected variance-covariance matrix}
-  \item{Varmat_cor}{Corrected variance-covariance matrix}
+  \item{Varmat_cor}{Corrected variance-covariance matrix (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{mV2}{Inverse of information matrix for structural model}
   \item{iter}{Number of iterations for EM algorithm}
   \item{eps}{Difference between last two elements of log-likelihood sequence for EM algorithm}
@@ -207,11 +207,11 @@ Multilevel model estimation with lower-level covariates returns (if \code{extout
   \item{mBeta}{Intercepts in logistic parametrization for response probabilities}
   \item{parvec}{Vector of logistic parameters}
   \item{SEs_unc}{Uncorrected standard errors}
-  \item{SEs_cor}{Corrected standard errors}
-  \item{SEs_cor_gamma}{Corrected standard errors only for the gammas}
+  \item{SEs_cor}{Corrected standard errors (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
+  \item{SEs_cor_gamma}{Corrected standard errors only for the gammas (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{mQ}{Cross-derivatives for asymptotic standard error correction in two-step estimation (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{Varmat_unc}{Uncorrected variance-covariance matrix}
-  \item{Varmat_cor}{Corrected variance-covariance matrix}
+  \item{Varmat_cor}{Corrected variance-covariance matrix (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{Infomat}{Expected information matrix}
   \item{cGamma_Info}{Expected information matrix only for the gammas}
   \item{mV2}{Inverse of information matrix for structural model}
@@ -249,12 +249,12 @@ Multilevel model estimation with lower- and higher-level covariates returns (if 
   \item{mBeta}{Intercepts in logistic parametrization for response probabilities}
   \item{parvec}{Vector of logistic parameters}
   \item{SEs_unc}{Uncorrected standard errors}
-  \item{SEs_cor}{Corrected standard errors}
-  \item{SEs_cor_alpha}{Corrected standard errors only for the alphas}
-  \item{SEs_cor_gamma}{Corrected standard errors only for the gammas}
+  \item{SEs_cor}{Corrected standard errors (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
+  \item{SEs_cor_alpha}{Corrected standard errors only for the alphas (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
+  \item{SEs_cor_gamma}{Corrected standard errors only for the gammas (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{mQ}{Cross-derivatives for asymptotic standard error correction in two-step estimation (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{Varmat_unc}{Uncorrected variance-covariance matrix}
-  \item{Varmat_cor}{Corrected variance-covariance matrix}
+  \item{Varmat_cor}{Corrected variance-covariance matrix (see Bakk & Kuha, 2018; Di Mari et al., 2023)}
   \item{Infomat}{Expected information matrix}
   \item{cAlpha_Info}{Expected information matrix only for the alphas}
   \item{cGamma_Info}{Expected information matrix only for the gammas}

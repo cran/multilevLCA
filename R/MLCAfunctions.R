@@ -607,7 +607,7 @@ meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e
   lowlev_relclassprop = matrix(0,iJ,iT)
   foo = 0
   for(j in 1:iJ){
-    lowlev_relclassprop[j,] = colMeans(out_LCA$mU[foo+(1:vNj[j]),])
+    lowlev_relclassprop[j,] = colMeans(out_LCA$mU[foo+(1:vNj[j]),,drop=FALSE])
     foo = foo +vNj[j]
   }
   high_out      = kmeans(lowlev_relclassprop,centers = iM,iter.max=100,nstart=100)
@@ -740,7 +740,7 @@ meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, kmea = T, maxIter
   lowlev_relclassprop = matrix(0,iJ,iT)
   foo = 0
   for(j in 1:iJ){
-    lowlev_relclassprop[j,] = colMeans(out_LCA$mU[foo+(1:vNj[j]),])
+    lowlev_relclassprop[j,] = colMeans(out_LCA$mU[foo+(1:vNj[j]),,drop=FALSE])
     foo = foo +vNj[j]
   }
   high_out      = kmeans(lowlev_relclassprop,centers = iM,iter.max=100,nstart=100)
@@ -2550,11 +2550,13 @@ clean_cov = function(data,covnam){
     covnam_upd = c()
     for(i in covnam){
       if(!sapply(cov,is.numeric)[which(colnames(cov)==i)]){
-        covnam_lev        = sort(unique(cov[,i]))
-        cov_upd           = vecTomatClass(as.numeric(factor(cov[,i])))
-        colnames(cov_upd) = paste0(i,".",covnam_lev)
-        cov_upd           = cov_upd[,-1,drop=FALSE]
-        covnam_upd        = c(covnam_upd,colnames(cov_upd))
+        covnam_lev            = sort(unique(cov[,i]))
+        cov_missing           = is.na(as.numeric(factor(cov[,i])))
+        cov_upd               = vecTomatClass(as.numeric(factor(cov[,i])))
+        cov_upd[cov_missing,] = NA
+        colnames(cov_upd)     = paste0(i,".",covnam_lev)
+        cov_upd               = cov_upd[,-1,drop=FALSE]
+        covnam_upd            = c(covnam_upd,colnames(cov_upd))
       } else{
         cov_upd     = cov[,i,drop=FALSE]
         covnam_upd  = c(covnam_upd,i)
