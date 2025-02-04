@@ -18,9 +18,12 @@ id_high = NULL,
 iM = NULL,
 Z = NULL,
 Zh = NULL,
+incomplete = FALSE,
+fixedslopes = FALSE,
+startval = NULL,
+kmea = TRUE,
 extout = FALSE,
 dataout = TRUE,
-kmea = TRUE,
 sequential = TRUE,
 numFreeCores = 2,
 maxIter = 1e3,
@@ -53,16 +56,25 @@ verbose = TRUE
      Names of \code{data} columns with lower-level covariates (non-numeric covariates are treated as nominal). Default: \code{NULL}.
 }
   \item{Zh}{
-     Names of \code{data} columns with higher-level covariates (non-numeric covariates are treated as nominal). Default \code{NULL}
+     Names of \code{data} columns with higher-level covariates (non-numeric covariates are treated as nominal). Default: \code{NULL}.
+}
+  \item{incomplete}{
+     Whether to estimate the model with missing values included by means of full-information maximum-likelihood estimation (\code{TRUE}) or perform row-wise deletion of missing values (\code{FALSE}). Default: \code{FALSE}.
+}
+  \item{fixedslopes}{
+     Whether to estimate multilevel models with covariates with fixed lower-level slope parameters across the higher-level classes by means of log-linear parametrization. Default: \code{FALSE}.
+}
+  \item{startval}{
+     Name of \code{data} column with starting values for lower-level latent classes. Default: \code{NULL}.
+}
+  \item{kmea}{
+     Whether to compute starting values for single-level model using \eqn{K}-means (\code{TRUE}), which is recommended for algorithmic stability, or \eqn{K}-modes (\code{FALSE}). Default: \code{TRUE}.
 }
   \item{extout}{
      Whether to output extensive model and estimation information. Default: \code{FALSE}.
 }
   \item{dataout}{
      Whether to match class predictions to the observed data. Default: \code{TRUE}.
-}
-  \item{kmea}{
-     Whether to compute starting values for single-level model using \eqn{K}-means (\code{TRUE}), which is recommended for algorithmic stability, or \eqn{K}-modes (\code{FALSE}). Default: \code{TRUE}.
 }
   \item{sequential}{
      Whether to perform sequential model selection (\code{TRUE}) or parallelized model selection (\code{FALSE}). Default: \code{TRUE}.
@@ -101,7 +113,7 @@ To directly estimate a latent class model, \code{iT} and (optionally) \code{iM} 
 In the case where both \code{iT} and \code{iM} are defined as a range of consecutive positive integers, model selection can be performed using the sequential three-stage approach (Lukociene et al., 2010) or a simultaneous approach. The sequential approach involves (first step) estimating \code{iT_min:iT_max} single-level models and identifying the optimal alternative \code{iT_opt1} based on the BIC, (second step) estimating \code{iM_min:iM_max|iT = iT_opt1} multilevel models and identifying the optimal alternative \code{iM_opt2} based on the higher-level BIC, and (third step) estimating \code{iT_min:iT_max|iM = iM_opt2} multilevel models and identifying the optimal alternative \code{iT_opt3} based on the lower-level BIC. The simultaneous approach involves devoting multiple CPU cores on the local machine to estimate all combinations in \code{iT = iT_min:iT_max, iM = iM_min:iM_max} and identifying the optimal alternative based on the lower-level BIC.
 }
 \value{
-Single-level model estimation returns (if \code{extout = TRUE}, a subset):
+Single-level model estimation returns (if \code{extout = FALSE}, a subset):
   \item{vPi}{Class proportions}
   \item{mPhi}{Response probabilities given the latent classes}
   \item{mU}{Matrix of posterior class assignment (proportional assignment)}
@@ -123,7 +135,9 @@ Single-level model estimation returns (if \code{extout = TRUE}, a subset):
   \item{LLKSeries}{Full log-likelihood series for EM algorithm}
   \item{mScore}{Contributions to log-likelihood score}
   \item{spec}{Model specification}
-Single-level model estimation with covariates returns (if \code{extout = TRUE}, a subset):
+  \item{missing_values}{Strategy for handling of eventual missing values}
+  \item{sample_size}{Final sample size for model estimation}
+Single-level model estimation with covariates returns (if \code{extout = FALSE}, a subset):
   \item{mPi}{Class proportions given the covariates}
   \item{vPi_avg}{Sample average of \code{mPi}}
   \item{mPhi}{Response probabilities given the latent classes}
@@ -134,7 +148,7 @@ Single-level model estimation with covariates returns (if \code{extout = TRUE}, 
   \item{R2entr}{Entropy-based R\eqn{^2}}
   \item{BIC}{Bayesian Information Criterion (BIC)}
   \item{AIC}{Akaike Information Criterion (AIC)}
-  \item{cGamma}{Intercept and slope parameters in logistic models for conditional class membership}
+  \item{mGamma}{Intercept and slope parameters in logistic models for conditional class membership}
   \item{mBeta}{Intercepts in logistic parametrization for response probabilities}
   \item{parvec}{Vector of logistic parameters}
   \item{SEs_unc}{Uncorrected standard errors}
@@ -148,7 +162,10 @@ Single-level model estimation with covariates returns (if \code{extout = TRUE}, 
   \item{eps}{Difference between last two elements of log-likelihood sequence for EM algorithm}
   \item{LLKSeries}{Full log-likelihood series for EM algorithm}
   \item{spec}{Model specification}
-Multilevel model estimation returns (if \code{extout = TRUE}, a subset):
+  \item{estimator}{Estimation approach for structural model}
+  \item{missing_values}{Strategy for handling of eventual missing values}
+  \item{sample_size}{Final sample size for model estimation}
+Multilevel model estimation returns (if \code{extout = FALSE}, a subset):
   \item{vOmega}{Higher-level class proportions}
   \item{mPi}{Lower-level class proportions given the higher-level latent classes}
   \item{mPhi}{Response probabilities given the lower-level latent classes}
@@ -181,7 +198,9 @@ Multilevel model estimation returns (if \code{extout = TRUE}, a subset):
   \item{vLLK}{Current log-likelihood for higher-level units}
   \item{mScore}{Contributions to log-likelihood score}
   \item{spec}{Model specification}
-Multilevel model estimation with lower-level covariates returns (if \code{extout = TRUE}, a subset):
+  \item{missing_values}{Strategy for handling of eventual missing values}
+  \item{sample_size}{Final sample size for model estimation}
+Multilevel model estimation with lower-level covariates returns (if \code{extout = FALSE}, a subset):
   \item{vOmega}{Higher-level class proportions}
   \item{mPi}{Lower-level class proportions given the higher-level latent classes and the covariates}
   \item{mPi_avg}{Sample average of \code{mPi}}
@@ -222,7 +241,10 @@ Multilevel model estimation with lower-level covariates returns (if \code{extout
   \item{mScore}{Contributions to log-likelihood score}
   \item{mGamma_Score}{Contributions to log-likelihood score only for the gammas}
   \item{spec}{Model specification}
-Multilevel model estimation with lower- and higher-level covariates returns (if \code{extout = TRUE}, a subset):
+  \item{estimator}{Estimation approach for structural model}
+  \item{missing_values}{Strategy for handling of eventual missing values}
+  \item{sample_size}{Final sample size for model estimation}
+Multilevel model estimation with lower- and higher-level covariates returns (if \code{extout = FALSE}, a subset):
   \item{mOmega}{Higher-level class proportions given the covariates}
   \item{vOmega_avg}{Higher-level class proportions averaged over higher-level units}
   \item{mPi}{Lower-level class proportions given the higher-level latent classes and the covariates}
@@ -267,6 +289,9 @@ Multilevel model estimation with lower- and higher-level covariates returns (if 
   \item{mAlpha_Score}{Contributions to log-likelihood score only for the alphas}
   \item{mGamma_Score}{Contributions to log-likelihood score only for the gammas}
   \item{spec}{Model specification}
+  \item{estimator}{Estimation approach for structural model}
+  \item{missing_values}{Strategy for handling of eventual missing values}
+  \item{sample_size}{Final sample size for model estimation}
 }
 \references{
 Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent classes and external variables. \emph{Psychometrika, 83, 871-892}.

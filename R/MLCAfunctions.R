@@ -2,22 +2,50 @@
   packageStartupMessage("multilevLCA: Estimates and plots single- and multilevel latent class models.")
 }
 
-multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
-                    extout = FALSE, dataout = TRUE, kmea = TRUE, sequential = TRUE,
-                    numFreeCores = 2, maxIter = 1e3, tol = 1e-8,
+multiLCA = function(data, Y, iT,
+                    id_high = NULL, iM = NULL,
+                    Z = NULL, Zh = NULL,
+                    incomplete = FALSE, fixedslopes = FALSE,
+                    startval = NULL, kmea = TRUE,
+                    extout = FALSE, dataout = TRUE,
+                    sequential = TRUE, numFreeCores = 2,
+                    maxIter = 1e3, tol = 1e-8,
                     reord = TRUE, fixedpars = 1,
-                    NRmaxit = 100, NRtol = 1e-6, verbose = TRUE){
-  #
-  if(verbose){
-    pb=txtProgressBar(char="Cleaning data...",width=1)
-    setTxtProgressBar(pb,1)
-    close(pb)
-  }
-  #
-  check_inputs1(data,Y,iT,id_high,iM,Z,Zh)
+                    NRmaxit = 100, NRtol = 1e-6,
+                    verbose = TRUE){
+  check_inputs1(data,Y,iT,id_high,iM,Z,Zh,startval)
+  data = data[,c(Y,id_high,Z,Zh,startval)]
   nrow_data = nrow(data)
-  data      = data[complete.cases(data[,Y]),c(Y,id_high,Z,Zh)]
-  approach  = check_inputs2(data,Y,iT,id_high,iM,Z,Zh)
+  if(incomplete){
+    if(nrow(na.omit(data[,Y]))==nrow_data){
+      incomplete = FALSE
+      mDesign = NULL
+    } else{
+      all_Y_missing = apply(data[,Y],1,function(x){sum(as.integer(!is.na(x)))==0})
+      if(any(all_Y_missing)){
+        if(verbose){
+          pb=txtProgressBar(char="Discarding rows with missing values for all indicators...",width=1)
+          setTxtProgressBar(pb,1)
+          close(pb)
+        }
+      }
+      data = data[!all_Y_missing,]
+      mDesign = matrix(1,nrow(data[,Y]),ncol(data[,Y]))
+      mDesign[is.na(data[,Y])] = 0
+      colnames(mDesign) = Y
+    }
+  } else{
+    data = data[complete.cases(data[,Y]),]
+    if(nrow(data)<nrow_data){
+      if(verbose){
+        pb=txtProgressBar(char="Discarding rows with missing values for any indicator...",width=1)
+        setTxtProgressBar(pb,1)
+        close(pb)
+      }
+    }
+    mDesign = NULL
+  }
+  approach  = check_inputs2(data,Y,iT,id_high,iM,Z,Zh,startval)
   
   reord = as.numeric(reord)
   fixed = fixedpars
@@ -32,17 +60,25 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     vNj             = table(id_high)
   }
   mY        = as.matrix(data[,Y])
-  ivItemcat = apply(mY,2,function(x){length(unique(x))})
+  ivItemcat = apply(mY,2,function(x){length(na.omit(unique(x)))})
   itemchar  = any(apply(data[,Y],2,function(x){!is.numeric(x)}))
   if(any(ivItemcat>2)&!itemchar){
-    mY  = update_YmY(mY,Y,ivItemcat)
+    mY  = update_YmY(mY,Y,ivItemcat,mDesign)
     Y   = mY$Y
     mY  = mY$mY
   } else if(itemchar){
-    mY  = update_YmY_nonnum(mY,Y,ivItemcat)
+    mY  = update_YmY_nonnum(mY,Y,ivItemcat,mDesign)
     Y   = mY$Y
     mY  = mY$mY
-    }
+  } else if(incomplete){
+    mY  = update_YmY(mY,Y,ivItemcat,mDesign)
+    Y   = mY$Y
+    mY  = mY$mY
+  }
+  if(any(ivItemcat>2)&incomplete){
+    mDesign = matrix(1,nrow(mY),ncol(mY))
+    mDesign[is.na(mY)] = 0
+  }
   if(!is.null(Z)){
     mZ  = clean_cov(data,Z)
     Z   = mZ$covnam
@@ -52,6 +88,9 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     mZh = clean_cov(data,Zh)
     Zh  = mZh$covnam
     mZh = mZh$cov
+  }
+  if(!is.null(startval)){
+    startval = data[,startval]
   }
   
   if(approach=="direct"){
@@ -66,24 +105,36 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       close(pb)
     }
     #
-    if(any(ivItemcat>2)){
+    if(any(ivItemcat>2)|incomplete|(fixedslopes&!is.null(id_high)&!is.null(Z))){
       #
       if(is.null(id_high)&is.null(Z)&is.null(Zh)){
-        out = LCA_fast_init_poly(mY,iT,ivItemcat,kmea,maxIter,tol,reord)
+        out = LCA_fast_init_poly(mY,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
         out = clean_output1(out,Y,iT,length(Y),extout,dataout,ivItemcat)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
-        out = LCA_fast_init_wcov_poly(mY,mZ,iT,ivItemcat,kmea,maxIter,tol,fixed,reord,
-                                      NRtol,NRmaxit,verbose)
+        out = LCA_fast_init_wcov_poly(mY,mZ,iT,ivItemcat,incomplete,kmea,maxIter,tol,fixed,reord,
+                                      NRtol,NRmaxit,verbose,startval)
         out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
-        init  = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
-        out   = MLTLCA_poly(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
-                            ivItemcat,maxIter,tol,reord)
+        init  = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+        if(!incomplete){
+          out   = MLTLCA_poly(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
+                              ivItemcat,init$first_poly,maxIter,tol,reord)
+        } else{
+          mY[is.na(mY)] = max(na.omit(mY))+1
+          out   = MLTLCA_poly_includeall(mY,mDesign,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
+                                         ivItemcat,init$first_poly,maxIter,tol,reord)
+        }
         out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&is.null(Zh)){
-        init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
-        init2 = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
-                            ivItemcat,maxIter,tol,reord)
+        init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+        if(!incomplete){
+          init2 = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
+                              ivItemcat,init1$first_poly,maxIter,tol,reord)
+        } else{
+          mY[is.na(mY)] = max(na.omit(mY))+1
+          init2 = MLTLCA_poly_includeall(mY,mDesign,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
+                                         ivItemcat,init1$first_poly,maxIter,tol,reord)
+        }
         P             = ncol(mZ)
         vOmega_start  = init2$vOmega
         cGamma_start  = array(c(rbind(init2$mGamma,matrix(0,(iT-1)*(P-1),iM))),c(iT-1,P,iM))
@@ -91,6 +142,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         mStep1Var     = init2$Varmat
         #
         mY      = mY[complete.cases(mZ),]
+        mDesign = mDesign[complete.cases(mZ),]
         id_high = id_high[complete.cases(mZ)]
         vNj     = table(id_high)
         mZ      = mZ[complete.cases(mZ),]
@@ -103,13 +155,34 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
           }
         }
         #
-        out = MLTLCA_cov_poly(mY,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
-                              ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+        if(!incomplete){
+          if(!fixedslopes){
+            out = MLTLCA_cov_poly(mY,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
+                                  ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          } else{
+            out = MLTLCA_covWfixed_poly(mY,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
+                                        ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          }
+        } else{
+          if(!fixedslopes){
+            out = MLTLCA_cov_poly_includeall(mY,mDesign,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
+                                             ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          } else{
+            out = MLTLCA_covWfixed_poly_includeall(mY,mDesign,mZ,vNj,vOmega_start,cGamma_start,mPhi_start,mStep1Var,
+                                                   ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          }
+        }
         out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&!is.null(Zh)){
-        init1   = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,kmea)
-        init2   = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
-                              ivItemcat,maxIter,tol,reord)
+        init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+        if(!incomplete){
+          init2 = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
+                              ivItemcat,init1$first_poly,maxIter,tol,reord)
+        } else{
+          mY[is.na(mY)] = max(na.omit(mY))+1
+          init2 = MLTLCA_poly_includeall(mY,mDesign,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
+                                         ivItemcat,init1$first_poly,maxIter,tol,reord)
+        }
         P                 = ncol(mZ)
         P_high            = ncol(mZh)
         cGamma_start      = array(c(rbind(init2$mGamma,matrix(0,(iT-1)*(P-1),iM))),c(iT-1,P,iM))
@@ -120,6 +193,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         #
         nomissing = complete.cases(mZ)&complete.cases(mZh)
         mY        = mY[nomissing,]
+        mDesign   = mDesign[nomissing,]
         id_high   = id_high[nomissing]
         vNj       = table(id_high)
         mZ        = mZ[nomissing,]
@@ -134,25 +208,41 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
           }
         }
         #
-        out = MLTLCA_covlowhigh_poly(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
-                                     mStep1Var,ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+        fixedslopes = FALSE
+        if(!incomplete){
+          if(!fixedslopes){
+            out = MLTLCA_covlowhigh_poly(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
+                                         mStep1Var,ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          } else{
+            out = MLTLCA_covWfixedlowhigh_poly(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
+                                               mStep1Var,ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          }
+        } else{
+          if(!fixedslopes){
+            out = MLTLCA_covlowhigh_poly_includeall(mY,mDesign,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
+                                                    mStep1Var,ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          } else{
+            out = MLTLCA_covWfixedlowhigh_poly_includeall(mY,mDesign,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
+                                                          mStep1Var,ivItemcat,maxIter,tol,fixedpars,1,NRtol,NRmaxit)
+          }
+        }
         out = clean_output5(out,Y,iT,iM,c("Intercept",Z),c("Intercept",Zh),mY,mZ,mZh,id_high,length(Y),P,P_high,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       }
     } else{
       if(is.null(id_high)&is.null(Z)&is.null(Zh)){
-        out = LCA_fast_init(mY,iT,kmea,maxIter,tol,reord)
+        out = LCA_fast_init(mY,iT,kmea,maxIter,tol,reord,startval)
         out = clean_output1(out,Y,iT,length(Y),extout,dataout,ivItemcat)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
         out = LCA_fast_init_wcov(mY,mZ,iT,kmea,maxIter,tol,fixed,reord,
-                                 NRtol,NRmaxit,verbose)
+                                 NRtol,NRmaxit,verbose,startval)
         out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
-        init  = meas_Init(mY,id_high,vNj,iM,iT,kmea)
+        init  = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,startval)
         out   = MLTLCA(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
                        maxIter,tol,reord)
         out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&is.null(Zh)){
-        init1 = meas_Init(mY,id_high,vNj,iM,iT,kmea)
+        init1 = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,startval)
         init2 = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
                        maxIter,tol,reord)
         P             = ncol(mZ)
@@ -162,6 +252,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         mStep1Var     = init2$Varmat
         #
         mY      = mY[complete.cases(mZ),]
+        mDesign = mDesign[complete.cases(mZ),]
         id_high = id_high[complete.cases(mZ)]
         vNj     = table(id_high)
         mZ      = mZ[complete.cases(mZ),]
@@ -178,7 +269,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                          maxIter,tol,fixedpars,NRtol,NRmaxit)
         out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&!is.null(Zh)){
-        init1   = meas_Init(mY,id_high,vNj,iM,iT,kmea)
+        init1   = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,startval)
         init2   = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
                          maxIter,tol,reord)
         P                 = ncol(mZ)
@@ -191,6 +282,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         #
         nomissing = complete.cases(mZ)&complete.cases(mZh)
         mY        = mY[nomissing,]
+        mDesign   = mDesign[nomissing,]
         id_high   = id_high[nomissing]
         vNj       = table(id_high)
         mZ        = mZ[nomissing,]
@@ -211,81 +303,105 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
       }
     }
   } else if(approach=="model selection on low"){
-    if(any(ivItemcat>2)){
-      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach,verbose)
+    if(any(ivItemcat>2)|incomplete){
+      out = sel_other_poly(mY,mDesign,id_high,iT,iM,ivItemcat,approach,verbose,kmea,maxIter,tol,reord)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
+      if(optimal==1){
+        if(verbose)print(noquote(list_sel))
+        stop("iT=1 optimal.",call.=FALSE)
+      }
       out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
-      out = sel_other(mY,id_high,iT,iM,approach,verbose)
+      out = sel_other(mY,id_high,iT,iM,approach,verbose,kmea,maxIter,tol,reord)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
+      if(optimal==1){
+        if(verbose)print(noquote(list_sel))
+        stop("iT=1 optimal.",call.=FALSE)
+      }
       out = clean_output1(out$outmuLCA,Y,out$iT_best,length(Y),extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     }
   } else if(approach=="model selection on low with high"){
-    if(any(ivItemcat>2)){
-      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach,verbose)
+    if(any(ivItemcat>2)|incomplete){
+      out = sel_other_poly(mY,mDesign,id_high,iT,iM,ivItemcat,approach,verbose,kmea,maxIter,tol,reord)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
+      if(optimal==1){
+        if(verbose)print(noquote(list_sel))
+        stop("iT=1 optimal.",call.=FALSE)
+      }
       out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
-      out = sel_other(mY,id_high,iT,iM,approach,verbose)
+      out = sel_other(mY,id_high,iT,iM,approach,verbose,kmea,maxIter,tol,reord)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iT),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iT_best,dimnames=list("iT=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
+      if(optimal==1){
+        if(verbose)print(noquote(list_sel))
+        stop("iT=1 optimal.",call.=FALSE)
+      }
       out = clean_output3(out$outmuLCA,Y,out$iT_best,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     }
   } else if(approach=="model selection on high"){
-    if(any(ivItemcat>2)){
-      out = sel_other_poly(mY,id_high,iT,iM,ivItemcat,approach,verbose)
+    if(any(ivItemcat>2)|incomplete){
+      out = sel_other_poly(mY,mDesign,id_high,iT,iM,ivItemcat,approach,verbose,kmea,maxIter,tol,reord)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iM),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iM_best,dimnames=list("iM=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
+      if(out$iM_best>1){
+        out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
+      } else if(out$iM_best==1){
+        out = clean_output1(out$outmuLCA,Y,iT,length(Y),extout,dataout,ivItemcat)
+      }
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     } else{
-      out = sel_other(mY,id_high,iT,iM,approach,verbose)
+      out = sel_other(mY,id_high,iT,iM,approach,verbose,kmea,maxIter,tol,reord)
       out_mat = matrix(round(unlist(out[3:7]),2),length(iM),5,
                        dimnames=list(paste0("iT=",iT,",iM=",iM),
                                      c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
       out_mat[out_mat=="Inf"|out_mat=="-Inf"|is.na(out_mat)] = "-"
       optimal = matrix(out$iM_best,dimnames=list("iM=",""))
       list_sel = list(model_selection=out_mat,optimal=optimal)
-      out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
+      if(out$iM_best>1){
+        out = clean_output3(out$outmuLCA,Y,iT,out$iM_best,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
+      } else if(out$iM_best==1){
+        out = clean_output1(out$outmuLCA,Y,iT,length(Y),extout,dataout,ivItemcat)
+      }
       out$model_selection = list_sel
       if(verbose)print(noquote(list_sel))
     }
   } else if(approach=="model selection on low and high"){
     if(sequential){
-      if(any(ivItemcat>2)){
-        out = lukosel_fun_poly(mY,id_high,iT,iM,ivItemcat,verbose)
+      if(any(ivItemcat>2)|incomplete){
+        out = lukosel_fun_poly(mY,mDesign,id_high,iT,iM,ivItemcat,verbose,kmea,maxIter,tol,reord)
         step1mat = matrix(as.character(round(unlist(out[4:8]),2)),length(iT),5,
                           dimnames=list(paste0("iT=",iT),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
@@ -309,7 +425,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         out$model_selection = list_luk
         if(verbose)print(noquote(list_luk))
       } else{
-        out = lukosel_fun(mY,id_high,iT,iM,verbose)
+        out = lukosel_fun(mY,id_high,iT,iM,verbose,kmea,maxIter,tol,reord)
         step1mat = matrix(as.character(round(unlist(out[4:8]),2)),length(iT),5,
                           dimnames=list(paste0("iT=",iT),
                                         c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
@@ -341,15 +457,16 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         close(pb)
       }
       #
-      if(any(ivItemcat>2)){
+      if(any(ivItemcat>2)|incomplete){
         mYfoo       = mY
+        mDesignfoo  = mDesign
         id_highfoo  = id_high
         ivItemcatfoo = ivItemcat
         select_mat  = as.matrix(tidyr::expand_grid(iT,iM))
         nmod        = nrow(select_mat)
         iV          = parallel::detectCores()-numFreeCores
         cluster     = parallel::makeCluster(iV)
-        parallel::clusterExport(cluster,c("mYfoo","id_highfoo","ivItemcatfoo","select_mat","nmod"), 
+        parallel::clusterExport(cluster,c("mYfoo","mDesignfoo","id_highfoo","ivItemcatfoo","select_mat","nmod"), 
                                 envir = environment())
         parallel::clusterExport(cluster, 
                                 unclass(lsf.str(envir = asNamespace("multilevLCA"), 
@@ -370,7 +487,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                                                  iFoo       = select_mat[x,]
                                                  iT_curr    = iFoo[1]
                                                  iM_curr    = iFoo[2]
-                                                 out_simult = simultsel_fun_poly(mYfoo,id_highfoo,iT_curr,iM_curr,ivItemcatfoo)
+                                                 out_simult = simultsel_fun_poly(mYfoo,mDesignfoo,id_highfoo,iT_curr,iM_curr,ivItemcatfoo,kmea,maxIter,tol,reord)
                                                  BIClow     = out_simult$BIClow
                                                  BIChigh    = out_simult$BIChigh
                                                  AIC        = out_simult$AIC
@@ -391,7 +508,10 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         optimal   = matrix(c(select_mat[r_optimal,1],select_mat[r_optimal,2]),dimnames=list(c("iT=","iM="),""))
         mod_sel[mod_sel==Inf|mod_sel==-Inf|is.na(mod_sel)] = "-"
         list_simul = list(model_selection=mod_sel,optimal=optimal)
-        if(select_mat[r_optimal,2]>1){
+        if(select_mat[r_optimal,1]==1){
+          if(verbose)print(noquote(list_simul))
+          stop("iT=1 optimal.",call.=FALSE)
+        } else if(select_mat[r_optimal,2]>1){
           out = clean_output3(simultaneous_out[[r_optimal]]$fit,
                               Y,select_mat[r_optimal,1],select_mat[r_optimal,2],
                               mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
@@ -428,7 +548,7 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
                                                  iFoo       = select_mat[x,]
                                                  iT_curr    = iFoo[1]
                                                  iM_curr    = iFoo[2]
-                                                 out_simult = simultsel_fun(mYfoo,id_highfoo,iT_curr,iM_curr)
+                                                 out_simult = simultsel_fun(mYfoo,id_highfoo,iT_curr,iM_curr,kmea,maxIter,tol,reord)
                                                  BIClow     = out_simult$BIClow
                                                  BIChigh    = out_simult$BIChigh
                                                  AIC        = out_simult$AIC
@@ -449,7 +569,10 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
         optimal   = matrix(c(select_mat[r_optimal,1],select_mat[r_optimal,2]),dimnames=list(c("iT=","iM="),""))
         mod_sel[mod_sel==Inf|mod_sel==-Inf|is.na(mod_sel)] = "-"
         list_simul = list(model_selection=mod_sel,optimal=optimal)
-        if(select_mat[r_optimal,2]>1){
+        if(select_mat[r_optimal,1]==1){
+          if(verbose)print(noquote(list_simul))
+          stop("iT=1 optimal.",call.=FALSE)
+        } else if(select_mat[r_optimal,2]>1){
           out = clean_output3(simultaneous_out[[r_optimal]]$fit,
                               Y,select_mat[r_optimal,1],select_mat[r_optimal,2],
                               mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
@@ -463,66 +586,77 @@ multiLCA = function(data, Y, iT, id_high = NULL, iM = NULL, Z = NULL, Zh = NULL,
     }
   }
   
-  if(nrow(data)<nrow_data){
-    if(fixed==1|fixed==2){
-      warning(paste("Missing values in columns for indicators,",
-                    "sample size for estimation of measurement model:",
-                    nrow(data)),call.=FALSE)
-    } else if(fixed==0&is.null(Z)){
-      warning(paste("Missing values in columns for indicators,",
-                    "sample size for estimation of measurement model:",
-                    nrow(data)),call.=FALSE)
-    } else if(fixed==0&!is.null(Z)){
-      if(nrow(na.omit(mZ))<nrow(data)){
-        warning(paste("Missing values in columns for indicators",
-                      "and columns for covariates,",
-                      "sample size for estimation:",
-                      nrow(na.omit(mZ))),call.=FALSE)
-      } else{
-        warning(paste("Missing values in columns for indicators,",
-                      "sample size for estimation:",
-                      nrow(data)),call.=FALSE)
-      }
+  if(approach=="direct"&!is.null(Z)){
+    if(fixed==0){
+      out$estimator = as.matrix("One-step")
+      rownames(out$estimator) = colnames(out$estimator) = ""
+    } else if(fixed==1){
+      out$estimator = as.matrix("Two-step")
+      rownames(out$estimator) = colnames(out$estimator) = ""
+    } else if(fixed==2){
+      out$estimator = as.matrix("Two-stage")
+      rownames(out$estimator) = colnames(out$estimator) = ""
     }
+  }
+  if(nrow(data)==nrow_data){
+    out$missing_values = as.matrix("None")
+    rownames(out$missing_values) = colnames(out$missing_values) = ""
+  } else if(!incomplete){
+    out$missing_values = as.matrix("Row-wise deletion")
+    rownames(out$missing_values) = colnames(out$missing_values) = ""
+  } else if(incomplete){
+    out$missing_values = as.matrix("Kept via FIML estimation")
+    rownames(out$missing_values) = colnames(out$missing_values) = ""
   }
   if(approach=="direct"&!is.null(Z)){
-    if(nrow(na.omit(mZ))<nrow(data)){
-      if(fixed==1|fixed==2){
-        warning(paste("Missing values in columns for covariates,",
-                      "sample size for estimation of structural model:",
-                      nrow(na.omit(mZ))),call.=FALSE)
-      } else if(fixed==0){
-        if(nrow(data)==nrow_data){
-          warning(paste("Missing values in columns for covariates,",
-                        "sample size for estimation of structural model:",
-                        nrow(na.omit(mZ))),call.=FALSE)
-        }
-      }
+    if(is.null(Zh)){
+      out$sample_size = as.matrix(c(nrow(data),nrow(na.omit(mZ))))
+      rownames(out$sample_size) = c("Measurement model:","Structural model:")
+      colnames(out$sample_size) = ""
+    } else if(!is.null(id_high)&!is.null(Zh)){
+      out$sample_size = as.matrix(c(nrow(data),nrow(mZ),nrow(mZh)))
+      rownames(out$sample_size) = c("Measurement model:",
+                                    "Lower-level structural model:",
+                                    "Higher-level structural model:")
+      colnames(out$sample_size) = ""
     }
+  } else{
+    out$sample_size = as.matrix(nrow(data))
+    rownames(out$sample_size) = colnames(out$sample_size) = ""
   }
-  
+
   out$call = match.call()
   class(out) = "multiLCA"
   return(out)
 }
 #
-LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1){
+LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
   group_by_all  = NULL
   mY_df         = data.frame(mY)
   mY_aggr       = as.matrix(mY_df%>%group_by_all%>%count)
   iHf           = dim(mY_aggr)[2]
   freq          = mY_aggr[,iHf]
   mY_unique     = mY_aggr[,-iHf]
-  if(kmea==FALSE){
+  if(is.null(startval)&kmea==FALSE){
     clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
-  } else{
+    mU          = vecTomatClass(clusfoo)
+  } else if(is.null(startval)&kmea==TRUE){
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
     prscores    = prscores$x[,1:num_pc]
     spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
     clusfoo     = spectclust$cluster
+    mU          = vecTomatClass(clusfoo)
+  } else{
+    clusfoo     = vecTomatClass(factor(startval))
+    nclusfoo    = ncol(clusfoo)
+    colnames(clusfoo) = paste0("clusfoo",1:nclusfoo)
+    Y           = names(mY_df)
+    mY_df       = data.frame(cbind(mY,clusfoo))
+    clusfoo     = as.matrix(mY_df%>%group_by(across(all_of(Y)))%>%summarise_at(vars(paste0("clusfoo",1:nclusfoo)),mean))
+    clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
+    mU          = clusfoo
   }
-  mU            = vecTomatClass(clusfoo)
   out           = LCA_fast(mY_unique,freq,iT,mU,maxIter,tol,reord)
   out$mY_unique = mY_unique
   out$freq      = freq
@@ -530,7 +664,7 @@ LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1)
 }
 #
 LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1,
-                              NRtol = 1e-6, NRmaxit = 100, verbose){
+                              NRtol = 1e-6, NRmaxit = 100, verbose, startval){
   # mZ must include a column of ones!
   group_by_all    = NULL
   mY_df           = data.frame(mY)
@@ -538,16 +672,26 @@ LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, f
   iHf             = dim(mY_aggr)[2]
   freq            = mY_aggr[,iHf]
   mY_unique       = mY_aggr[,-iHf]
-  if(kmea==FALSE){
+  if(is.null(startval)&kmea==FALSE){
     clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
-  } else{
+    mU          = vecTomatClass(clusfoo)
+  } else if(is.null(startval)&kmea==TRUE){
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
     prscores    = prscores$x[,1:num_pc]
     spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
     clusfoo     = spectclust$cluster
+    mU          = vecTomatClass(clusfoo)
+  } else{
+    clusfoo     = vecTomatClass(factor(startval))
+    nclusfoo    = ncol(clusfoo)
+    colnames(clusfoo) = paste0("clusfoo",1:nclusfoo)
+    Y           = names(mY_df)
+    mY_df       = data.frame(cbind(mY,clusfoo))
+    clusfoo     = as.matrix(mY_df%>%group_by(across(all_of(Y)))%>%summarise_at(vars(paste0("clusfoo",1:nclusfoo)),mean))
+    clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
+    mU          = clusfoo
   }
-  mU              = vecTomatClass(clusfoo)
   out             = LCA_fast(mY_unique,freq,iT,mU,maxIter,tol,reord)
   P               = ncol(mZ)
   mBeta_init      = matrix(0,P,iT-1)
@@ -569,7 +713,7 @@ LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, f
   return(list(out=out,outcov=outcov,mY=mY,mZ=mZ))
 }
 #
-LCA_fast_init_whigh = function(mY, id_high, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1){
+LCA_fast_init_whigh = function(mY, id_high, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval){
   group_by_all = NULL
   mY_df     = data.frame(mY,id_high)
   mY_aggr   = as.matrix(mY_df%>%group_by_all%>%count)
@@ -577,22 +721,32 @@ LCA_fast_init_whigh = function(mY, id_high, iT, kmea = T, maxIter = 1e3, tol = 1
   mY_aggr   = mY_aggr[order(mY_aggr[,iHf-1]),]
   freq      = mY_aggr[,iHf]
   mY_unique = mY_aggr[,-c(iHf-1,iHf)]
-  if(kmea==FALSE){
+  if(is.null(startval)&kmea==FALSE){
     clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
-  } else{
+    mU          = vecTomatClass(clusfoo)
+  } else if(is.null(startval)&kmea==TRUE){
     prscores    = prcomp(mY_unique)
     num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
     prscores    = prscores$x[,1:num_pc]
     spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
     clusfoo     = spectclust$cluster
+    mU          = vecTomatClass(clusfoo)
+  } else{
+    clusfoo     = vecTomatClass(factor(startval))
+    nclusfoo    = ncol(clusfoo)
+    colnames(clusfoo) = paste0("clusfoo",1:nclusfoo)
+    Y           = names(mY_df)
+    mY_df       = data.frame(cbind(mY,id_high,clusfoo))
+    clusfoo     = as.matrix(mY_df%>%group_by(across(all_of(c(Y,"id_high"))))%>%summarise_at(vars(paste0("clusfoo",1:nclusfoo)),mean))
+    clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
+    mU          = clusfoo
   }
-  mU        = vecTomatClass(clusfoo)
   out       = LCA_fast(mY_unique,freq,iT,mU,maxIter,tol,reord)
   mU        = out$mU[rep(1:nrow(mY_unique),freq),]
   return(list(out=out,mU=mU))
 }
 #
-meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1){
+meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
   # Fixed number of low- (iT) and high- (iM) level classes
   iJ = length(vNj)
   iN = dim(mY)[1]
@@ -600,7 +754,7 @@ meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e
   # 
   # Working out starting values at the low level first
   # 
-  out_LCA = LCA_fast_init_whigh(mY,id_high,iT,kmea,maxIter,tol,reord)
+  out_LCA = LCA_fast_init_whigh(mY,id_high,iT,kmea,maxIter,tol,reord,startval)
   # 
   # Now turning to the higher level
   # 
@@ -635,7 +789,7 @@ meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e
   return(list(vOmega_start=vOmega_start, mPi_start = mPi_start, mPhi_start = mPhi_start))
 }
 #
-LCA_fast_init_poly = function(mY, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1){
+LCA_fast_init_poly = function(mY, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
   # ivItemcat is the vector of number of categories for each item
   group_by_all  = NULL
   mY_df         = data.frame(mY)
@@ -643,24 +797,65 @@ LCA_fast_init_poly = function(mY, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 
   iHf           = dim(mY_aggr)[2]
   freq          = mY_aggr[,iHf]
   mY_unique     = mY_aggr[,-iHf]
-  if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
-  } else{
-    prscores    = prcomp(mY_unique)
-    num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
-    prscores    = prscores$x[,1:num_pc]
-    spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
-    clusfoo     = spectclust$cluster
+  if(incomplete){
+    mDesign = matrix(1,nrow(mY_unique),ncol(mY_unique))
+    mDesign[is.na(mY_unique)] = 0
   }
-  mU            = vecTomatClass(clusfoo)
-  out           = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,maxIter,tol,reord)
+  if(is.null(startval)&kmea==FALSE){
+    if(!incomplete){
+      clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
+      mU          = vecTomatClass(clusfoo)
+    } else{
+      clusfoo     = klaR::kmodes(na.omit(mY_unique),modes=iT,iter.max=100)$cluster
+      mU          = matrix(NA,nrow(mY_unique),iT)
+      mU[complete.cases(mY_unique),] = vecTomatClass(clusfoo)
+      mU[!complete.cases(mY_unique),] = 1/iT
+      mY_unique[is.na(mY_unique)] = max(na.omit(mY_unique))+1
+    }
+  } else if(is.null(startval)&kmea==TRUE){
+    if(!incomplete){
+      prscores    = prcomp(mY_unique)
+      num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
+      prscores    = prscores$x[,1:num_pc]
+      spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
+      clusfoo     = spectclust$cluster
+      mU          = vecTomatClass(clusfoo)
+    } else{
+      prscores    = prcomp(na.omit(mY_unique))
+      num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
+      prscores    = prscores$x[,1:num_pc]
+      spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
+      clusfoo     = spectclust$cluster
+      mU          = matrix(NA,nrow(mY_unique),iT)
+      mU[complete.cases(mY_unique),] = vecTomatClass(clusfoo)
+      mU[!complete.cases(mY_unique),] = 1/iT
+      mY_unique[is.na(mY_unique)] = max(na.omit(mY_unique))+1
+    }
+  } else{
+    clusfoo     = vecTomatClass(factor(startval))
+    nclusfoo    = ncol(clusfoo)
+    colnames(clusfoo) = paste0("clusfoo",1:nclusfoo)
+    Y           = names(mY_df)
+    mY_df       = data.frame(cbind(mY,clusfoo))
+    clusfoo     = as.matrix(mY_df%>%group_by(across(all_of(Y)))%>%summarise_at(vars(paste0("clusfoo",1:nclusfoo)),mean))
+    clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
+    mU          = clusfoo
+  }
+  first_poly    = sapply(ivItemcat,function(x){y=x;if(y==2)y=1;return(y)})
+  first_poly    = cumsum(first_poly)-first_poly
+  if(!incomplete){
+    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+  } else{
+    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+  }
+  mY_unique[mY_unique==max(mY_unique)] = NA
   out$mY_unique = mY_unique
   out$freq      = freq
   return(out)
 }
 #
-LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1,
-                                   NRtol = 1e-6, NRmaxit = 100, verbose){
+LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1,
+                                   NRtol = 1e-6, NRmaxit = 100, verbose, startval){
   # mZ must include a column of ones!
   # ivItemcat is the vector of number of categories for each item
   group_by_all    = NULL
@@ -669,17 +864,57 @@ LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, kmea = T, maxIter = 1e
   iHf             = dim(mY_aggr)[2]
   freq            = mY_aggr[,iHf]
   mY_unique       = mY_aggr[,-iHf]
-  if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
-  } else{
-    prscores    = prcomp(mY_unique)
-    num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
-    prscores    = prscores$x[,1:num_pc]
-    spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
-    clusfoo     = spectclust$cluster
+  if(incomplete){
+    mDesign = matrix(1,nrow(mY_unique),ncol(mY_unique))
+    mDesign[is.na(mY_unique)] = 0
   }
-  mU              = vecTomatClass(clusfoo)
-  out             = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,maxIter,tol,reord)
+  if(is.null(startval)&kmea==FALSE){
+    if(!incomplete){
+      clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
+      mU          = vecTomatClass(clusfoo)
+    } else{
+      clusfoo     = klaR::kmodes(na.omit(mY_unique),modes=iT,iter.max=100)$cluster
+      mU          = matrix(NA,nrow(mY_unique),iT)
+      mU[complete.cases(mY_unique),] = vecTomatClass(clusfoo)
+      mU[!complete.cases(mY_unique),] = 1/iT
+      mY_unique[is.na(mY_unique)] = max(na.omit(mY_unique))+1
+    }
+  } else if(is.null(startval)&kmea==TRUE){
+    if(!incomplete){
+      prscores    = prcomp(mY_unique)
+      num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
+      prscores    = prscores$x[,1:num_pc]
+      spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
+      clusfoo     = spectclust$cluster
+      mU          = vecTomatClass(clusfoo)
+    } else{
+      prscores    = prcomp(na.omit(mY_unique))
+      num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
+      prscores    = prscores$x[,1:num_pc]
+      spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
+      clusfoo     = spectclust$cluster
+      mU          = matrix(NA,nrow(mY_unique),iT)
+      mU[complete.cases(mY_unique),] = vecTomatClass(clusfoo)
+      mU[!complete.cases(mY_unique),] = 1/iT
+      mY_unique[is.na(mY_unique)] = max(na.omit(mY_unique))+1
+    }
+  } else{
+    clusfoo     = vecTomatClass(factor(startval))
+    nclusfoo    = ncol(clusfoo)
+    colnames(clusfoo) = paste0("clusfoo",1:nclusfoo)
+    Y           = names(mY_df)
+    mY_df       = data.frame(cbind(mY,clusfoo))
+    clusfoo     = as.matrix(mY_df%>%group_by(across(all_of(Y)))%>%summarise_at(vars(paste0("clusfoo",1:nclusfoo)),mean))
+    clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
+    mU          = clusfoo
+  }
+  first_poly      = sapply(ivItemcat,function(x){y=x;if(y==2)y=1;return(y)})
+  first_poly      = cumsum(first_poly)-first_poly
+  if(!incomplete){
+    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+  } else{
+    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+  }
   P               = ncol(mZ)
   mBeta_init      = matrix(0,P,iT-1)
   mBeta_init[1,]  = out$alphas
@@ -695,12 +930,21 @@ LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, kmea = T, maxIter = 1e
     }
   }
   #
-  outcov          = LCAcov_poly(mY,mZ,iT,out$mPhi,mBeta_init,Step1Var,ivItemcat,fixed,maxIter,
-                                tol,NRtol,NRmaxit)
+  if(!incomplete){
+    outcov          = LCAcov_poly(mY,mZ,iT,out$mPhi,mBeta_init,Step1Var,ivItemcat,fixed,maxIter,
+                                  tol,NRtol,NRmaxit)
+  } else{
+    mDesign = matrix(1,nrow(mY),ncol(mY))
+    mDesign[is.na(mY)] = 0
+    mY[is.na(mY)] = max(na.omit(mY))+1
+    outcov          = LCAcov_poly_includeall(mY,mDesign,mZ,iT,out$mPhi,mBeta_init,Step1Var,ivItemcat,fixed,maxIter,
+                                             tol,NRtol,NRmaxit)
+  }
+  mY[mY==max(mY)] = NA
   return(list(out=out,outcov=outcov,mY=mY,mZ=mZ))
 }
 #
-LCA_fast_init_whigh_poly = function(mY, id_high, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1){
+LCA_fast_init_whigh_poly = function(mY, id_high, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval){
   # ivItemcat is the vector of number of categories for each item
   group_by_all = NULL
   mY_df     = data.frame(mY,id_high)
@@ -709,22 +953,62 @@ LCA_fast_init_whigh_poly = function(mY, id_high, iT, ivItemcat, kmea = T, maxIte
   mY_aggr   = mY_aggr[order(mY_aggr[,iHf-1]),]
   freq      = mY_aggr[,iHf]
   mY_unique = mY_aggr[,-c(iHf-1,iHf)]
-  if(kmea==FALSE){
-    clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
-  } else{
-    prscores    = prcomp(mY_unique)
-    num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
-    prscores    = prscores$x[,1:num_pc]
-    spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
-    clusfoo     = spectclust$cluster
+  if(incomplete){
+    mDesign = matrix(1,nrow(mY_unique),ncol(mY_unique))
+    mDesign[is.na(mY_unique)] = 0
   }
-  mU        = vecTomatClass(clusfoo)
-  out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,maxIter,tol,reord)
-  mU        = out$mU[rep(1:nrow(mY_unique),freq),]
-  return(list(out=out,mU=mU))
+  if(is.null(startval)&kmea==FALSE){
+    if(!incomplete){
+      clusfoo     = klaR::kmodes(mY_unique,modes=iT,iter.max=100)$cluster
+      mU          = vecTomatClass(clusfoo)
+    } else{
+      clusfoo     = klaR::kmodes(na.omit(mY_unique),modes=iT,iter.max=100)$cluster
+      mU          = matrix(NA,nrow(mY_unique),iT)
+      mU[complete.cases(mY_unique),] = vecTomatClass(clusfoo)
+      mU[!complete.cases(mY_unique),] = 1/iT
+      mY_unique[is.na(mY_unique)] = max(na.omit(mY_unique))+1
+    }
+  } else if(is.null(startval)&kmea==TRUE){
+    if(!incomplete){
+      prscores    = prcomp(mY_unique)
+      num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
+      prscores    = prscores$x[,1:num_pc]
+      spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
+      clusfoo     = spectclust$cluster
+      mU          = vecTomatClass(clusfoo)
+    } else{
+      prscores    = prcomp(na.omit(mY_unique))
+      num_pc      = max(round(ncol(mY_unique)/2),(sum(cumsum(prscores$sdev^2/sum(prscores$sdev^2))<0.85)+1))
+      prscores    = prscores$x[,1:num_pc]
+      spectclust  = kmeans(prscores,centers=iT,iter.max=100,nstart=100)
+      clusfoo     = spectclust$cluster
+      mU          = matrix(NA,nrow(mY_unique),iT)
+      mU[complete.cases(mY_unique),] = vecTomatClass(clusfoo)
+      mU[!complete.cases(mY_unique),] = 1/iT
+      mY_unique[is.na(mY_unique)] = max(na.omit(mY_unique))+1
+    }
+  } else{
+    clusfoo     = vecTomatClass(factor(startval))
+    nclusfoo    = ncol(clusfoo)
+    colnames(clusfoo) = paste0("clusfoo",1:nclusfoo)
+    Y           = names(mY_df)
+    mY_df       = data.frame(cbind(mY,id_high,clusfoo))
+    clusfoo     = as.matrix(mY_df%>%group_by(across(all_of(c(Y,"id_high"))))%>%summarise_at(vars(paste0("clusfoo",1:nclusfoo)),mean))
+    clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
+    mU          = clusfoo
+  }
+  first_poly  = sapply(ivItemcat,function(x){y=x;if(y==2)y=1;return(y)})
+  first_poly  = cumsum(first_poly)-first_poly
+  if(!incomplete){
+    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+  } else{
+    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+  }
+  mU          = out$mU[rep(1:nrow(mY_unique),freq),]
+  return(list(out=out,mU=mU,first_poly=first_poly))
 }
 #
-meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1){
+meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
   # Fixed number of low- (iT) and high- (iM) level classes
   # ivItemcat is the vector of number of categories for each item
   iJ = length(vNj)
@@ -733,7 +1017,7 @@ meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, kmea = T, maxIter
   # 
   # Working out starting values at the low level first
   # 
-  out_LCA = LCA_fast_init_whigh_poly(mY,id_high,iT,ivItemcat,kmea,maxIter,tol,reord)
+  out_LCA = LCA_fast_init_whigh_poly(mY,id_high,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
   # 
   # now turning to higher level
   # 
@@ -765,12 +1049,12 @@ meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, kmea = T, maxIter
     mPi_start                                           = mPi_start_replace
   }
   # 
-  return(list(vOmega_start=vOmega_start, mPi_start = mPi_start, mPhi_start = mPhi_start))
+  return(list(vOmega_start=vOmega_start, mPi_start = mPi_start, mPhi_start = mPhi_start, first_poly = out_LCA$first_poly))
 }
 #
 #
 #
-simultsel_fun = function(mY,id_high,iT,iM){
+simultsel_fun = function(mY,id_high,iT,iM,kmea,maxIter,tol,reord){
   LCAout  = NULL
   iH      = ncol(mY)
   K       = iH
@@ -793,7 +1077,7 @@ simultsel_fun = function(mY,id_high,iT,iM){
     ICL_BIChigh = Inf
     outmuLCA    = list()
   }else if(iM==1 & iT > 1){
-    LCAout      = LCA_fast_init(mY,iT)
+    LCAout      = LCA_fast_init(mY,iT,kmea,maxIter,tol,reord)
     ll          = tail(LCAout$LLKSeries,1)
     npar        = iT*iH + iT - 1
     BIClow      = LCAout$BIC
@@ -804,10 +1088,10 @@ simultsel_fun = function(mY,id_high,iT,iM){
     outmuLCA    = LCAout
   }else{
     # Actual multilevel LC fit
-    start       = meas_Init(mY,id_high,vNj,iM,iT)
+    start       = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord)
     vOmegast    = start$vOmega_start
     mPi         = start$mPi_start
-    outmuLCA    = MLTLCA(mY, vNj, vOmegast, mPi, start$mPhi_start)
+    outmuLCA    = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
     ll          = tail(outmuLCA$LLKSeries,1) 
     BIClow      = outmuLCA$BIClow
     BIChigh     = outmuLCA$BIChigh
@@ -819,7 +1103,7 @@ simultsel_fun = function(mY,id_high,iT,iM){
               ICL_BIClow = ICL_BIClow, ICL_BIChigh = ICL_BIChigh))
 }
 #
-lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
+lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose,kmea,maxIter,tol,reord){
   iH      = ncol(mY)
   K       = iH
   vNj     = table(id_high-1)
@@ -853,7 +1137,7 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
       ICL_BIClow_step1[1]   = Inf
       ICL_BIChigh_step1[1]  = Inf
     } else{
-      LCAout                        = LCA_fast_init(mY,i)
+      LCAout                        = LCA_fast_init(mY,i,kmea,maxIter,tol,reord)
       ll                            = tail(LCAout$LLKSeries,1)
       npar                          = i*iH + i - 1
       BIClow_step1[1+i-iT_min]      = LCAout$BIC
@@ -864,7 +1148,16 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
     }
   }
   iT_currbest = which.min(BIClow_step1)+iT_min-1
-  if(iT_currbest==1) stop("iT=1 optimal.",call.=FALSE)
+  if(iT_currbest==1){
+    out = list(BIClow_step1 = BIClow_step1, BIChigh_step1 = BIChigh_step1, AIC_step1 = AIC_step1,
+               ICL_BIClow_step1 = ICL_BIClow_step1, ICL_BIChigh_step1 = ICL_BIChigh_step1)
+    step1mat = matrix(as.character(round(unlist(out),2)),length(iT_range),5,
+                      dimnames=list(paste0("iT=",iT_range),
+                                    c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
+    step1mat[step1mat=="Inf"|step1mat=="-Inf"|is.na(step1mat)] = "-"
+    if(verbose)print(noquote(step1mat))
+    stop("iT=1 optimal.",call.=FALSE)
+  }
   # Step 2 - higher level
   outmuLCA2         = list()
   BIClow_step2      = rep(NA,num_iM)
@@ -888,10 +1181,10 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
         ICL_BIClow_step2[1]   = ICL_BIClow_step1[1+iT_currbest-iT_min]
         ICL_BIChigh_step2[1]  = ICL_BIClow_step1[1+iT_currbest-iT_min]
       } else{
-        start     = meas_Init(mY,id_high,vNj,i,iT_currbest)
+        start     = meas_Init(mY,id_high,vNj,i,iT_currbest,kmea,maxIter,tol,reord)
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
-        outmuLCA2[[1+i-iM_min]]         = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start)
+        outmuLCA2[[1+i-iM_min]]         = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
         BIClow_step2[1+i-iM_min]        = outmuLCA2[[1+i-iM_min]]$BIClow
         BIChigh_step2[1+i-iM_min]       = outmuLCA2[[1+i-iM_min]]$BIChigh
         AIC_step2[1+i-iM_min]           = outmuLCA2[[1+i-iM_min]]$AIC
@@ -920,10 +1213,10 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
       }
       #
       if(i>1){
-        start     = meas_Init(mY,id_high,vNj,iM_currbest,i)
+        start     = meas_Init(mY,id_high,vNj,iM_currbest,i,kmea,maxIter,tol,reord)
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
-        outmuLCA3[[1+i-iT_min]]       = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start)
+        outmuLCA3[[1+i-iT_min]]       = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
         BIClow_step3[1+i-iT_min]      = outmuLCA3[[1+i-iT_min]]$BIClow
         BIChigh_step3[1+i-iT_min]     = outmuLCA3[[1+i-iT_min]]$BIChigh
         AIC_step3[1+i-iT_min]         = outmuLCA3[[1+i-iT_min]]$AIC
@@ -934,7 +1227,7 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
     iT_currbest     = which(BIClow_step3==min(BIClow_step3,na.rm=T))+iT_min-1
     outmuLCA_step3  = outmuLCA3[[1+iT_currbest-iT_min]]
   } else{
-    outmuLCA_step3 = LCA_fast_init(mY,iT_currbest)
+    outmuLCA_step3 = LCA_fast_init(mY,iT_currbest,kmea,maxIter,tol,reord)
   }
   return(list(outmuLCA_step3=outmuLCA_step3,iT_opt=iT_currbest, iM_opt=iM_currbest, 
               BIClow_step1 = BIClow_step1, BIChigh_step1 = BIChigh_step1, AIC_step1 = AIC_step1,
@@ -945,7 +1238,7 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose){
               ICL_BIClow_step3 = ICL_BIClow_step3, ICL_BIChigh_step3 = ICL_BIChigh_step3))
 }
 #
-sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose){
+sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose,kmea,maxIter,tol,reord){
   iH      = ncol(mY)
   K       = iH
   vNj     = table(id_high-1)
@@ -990,7 +1283,7 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose){
           ICL_BIClow[1]   = Inf
           ICL_BIChigh[1]  = Inf
         } else{
-          outmuLCA[[1+i-iT_min]]  = LCA_fast_init(mY,i)
+          outmuLCA[[1+i-iT_min]]  = LCA_fast_init(mY,i,kmea,maxIter,tol,reord)
           ll                      = tail(outmuLCA[[1+i-iT_min]]$LLKSeries,1)
           npar                    = i*iH + i - 1
           BIClow[1+i-iT_min]      = outmuLCA[[1+i-iT_min]]$BIC
@@ -1013,10 +1306,10 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose){
         }
         #
         if(i>1){
-          start     = meas_Init(mY,id_high,vNj,iM_range,i)
+          start     = meas_Init(mY,id_high,vNj,iM_range,i,kmea,maxIter,tol,reord)
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
-          outmuLCA[[1+i-iT_min]]  = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start)
+          outmuLCA[[1+i-iT_min]]  = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
           BIClow[1+i-iT_min]      = outmuLCA[[1+i-iT_min]]$BIClow
           BIChigh[1+i-iT_min]     = outmuLCA[[1+i-iT_min]]$BIChigh
           AIC[1+i-iT_min]         = outmuLCA[[1+i-iT_min]]$AIC
@@ -1048,7 +1341,7 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose){
         }
         #
         if(i==1){
-          outmuLCA[[1]]   = LCA_fast_init(mY,iT_range)
+          outmuLCA[[1]]   = LCA_fast_init(mY,iT_range,kmea,maxIter,tol,reord)
           ll              = tail(outmuLCA[[1]]$LLKSeries,1)
           npar            = iT_range*iH + iT_range - 1
           BIClow[1]       = outmuLCA[[1]]$BIC
@@ -1057,10 +1350,10 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose){
           ICL_BIClow[1]   = BIClow[1] + 2*sum(outmuLCA[[1]]$freq*apply(-outmuLCA[[1]]$mU*log(outmuLCA[[1]]$mU),1,sum))
           ICL_BIChigh[1]  = Inf
         } else{
-          start     = meas_Init(mY,id_high,vNj,i,iT_range)
+          start     = meas_Init(mY,id_high,vNj,i,iT_range,kmea,maxIter,tol,reord)
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
-          outmuLCA[[1+i-iM_min]]    = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start)
+          outmuLCA[[1+i-iM_min]]    = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
           BIClow[1+i-iM_min]        = outmuLCA[[1+i-iM_min]]$BIClow
           BIChigh[1+i-iM_min]       = outmuLCA[[1+i-iM_min]]$BIChigh
           AIC[1+i-iM_min]           = outmuLCA[[1+i-iM_min]]$AIC
@@ -1079,14 +1372,15 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose){
   }
 }
 #
-simultsel_fun_poly = function(mY,id_high,iT,iM,ivItemcat){
+simultsel_fun_poly = function(mY,mDesign,id_high,iT,iM,ivItemcat,kmea,maxIter,tol,reord){
   LCAout  = NULL
   iH      = sum(ivItemcat-1)
   K       = iH
   vNj     = table(id_high-1)
   iN      = length(vNj)
+  incomplete  = !is.null(mDesign)
   if(iM ==1 & iT ==1){
-    ll          = sum(apply(mY,2,function(x){dbinom(x,1,mean(x),log=T)}))
+    ll          = sum(apply(mY,2,function(x){dbinom(x,1,mean(x,na.rm=T),log=T)}),na.rm=T)
     BIClow      = -2*ll + K*log(sum(vNj))
     BIChigh     = -2*ll + K*log(iN)
     AIC         = -2*ll + 2*K
@@ -1102,7 +1396,7 @@ simultsel_fun_poly = function(mY,id_high,iT,iM,ivItemcat){
     ICL_BIChigh = Inf
     outmuLCA    = list()
   }else if(iM==1 & iT > 1){
-    LCAout      = LCA_fast_init_poly(mY,iT,ivItemcat)
+    LCAout      = LCA_fast_init_poly(mY,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord)
     ll          = tail(LCAout$LLKSeries,1)
     npar        = iT*iH + iT - 1
     BIClow      = LCAout$BIC
@@ -1113,11 +1407,17 @@ simultsel_fun_poly = function(mY,id_high,iT,iM,ivItemcat){
     outmuLCA    = LCAout
   }else{
     # Actual multilevel LC fit
-    start       = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat)
+    start       = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord)
     vOmegast    = start$vOmega_start
     mPi         = start$mPi_start
-    outmuLCA    = MLTLCA_poly(mY,vNj,vOmegast,mPi,
-                              start$mPhi_start,ivItemcat)
+    if(!incomplete){
+      outmuLCA    = MLTLCA_poly(mY,vNj,vOmegast,mPi,
+                                start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+    } else{
+      mY[is.na(mY)] = max(na.omit(mY))+1
+      outmuLCA    = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,
+                                           start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+    }
     ll          = tail(outmuLCA$LLKSeries,1)
     BIClow      = outmuLCA$BIClow
     BIChigh     = outmuLCA$BIChigh
@@ -1129,7 +1429,7 @@ simultsel_fun_poly = function(mY,id_high,iT,iM,ivItemcat){
               ICL_BIClow = ICL_BIClow, ICL_BIChigh = ICL_BIChigh))
 }
 #
-lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
+lukosel_fun_poly = function(mY,mDesign,id_high,iT_range,iM_range,ivItemcat,verbose,kmea,maxIter,tol,reord){
   iH      = sum(ivItemcat-1)
   K       = iH
   vNj     = table(id_high-1)
@@ -1140,6 +1440,7 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
   iM_max  = max(iM_range)
   iM_min  = min(iM_range)
   num_iM  = iM_max-iM_min+1
+  incomplete  = !is.null(mDesign)
   # Step 1 - lower level
   LCAout            = list()
   BIClow_step1      = rep(NA,num_iT)
@@ -1156,14 +1457,14 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
     }
     #
     if(i==1){
-      llfoo                 = sum(apply(mY,2,function(x){dbinom(x,1,mean(x),log=T)}))
+      llfoo                 = sum(apply(mY,2,function(x){dbinom(x,1,mean(x,na.rm=T),log=T)}),na.rm=T)
       BIClow_step1[1]       = -2*llfoo + K*log(sum(vNj))
       BIChigh_step1[1]      = -2*llfoo + K*log(iN)
       AIC_step1[1]          = -2*llfoo + 2*K
       ICL_BIClow_step1[1]   = Inf
       ICL_BIChigh_step1[1]  = Inf
     } else{
-      LCAout                        = LCA_fast_init_poly(mY,i,ivItemcat)
+      LCAout                        = LCA_fast_init_poly(mY,i,ivItemcat,incomplete,kmea,maxIter,tol,reord)
       ll                            = tail(LCAout$LLKSeries,1)
       npar                          = i*iH + i - 1
       BIClow_step1[1+i-iT_min]      = LCAout$BIC
@@ -1174,7 +1475,16 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
     }
   }
   iT_currbest = which.min(BIClow_step1)+iT_min-1
-  if(iT_currbest==1) stop("iT=1 optimal.",call.=FALSE)
+  if(iT_currbest==1){
+    out = list(BIClow_step1 = BIClow_step1, BIChigh_step1 = BIChigh_step1, AIC_step1 = AIC_step1,
+               ICL_BIClow_step1 = ICL_BIClow_step1, ICL_BIChigh_step1 = ICL_BIChigh_step1)
+    step1mat = matrix(as.character(round(unlist(out),2)),length(iT_range),5,
+                      dimnames=list(paste0("iT=",iT_range),
+                                    c("BIClow","BIChigh","AIC","ICL_BIClow","ICL_BIChigh")))
+    step1mat[step1mat=="Inf"|step1mat=="-Inf"|is.na(step1mat)] = "-"
+    if(verbose)print(noquote(step1mat))
+    stop("iT=1 optimal.",call.=FALSE)
+  }
   # Step 2 - higher level
   outmuLCA2         = list()
   BIClow_step2      = rep(NA,num_iM)
@@ -1198,10 +1508,15 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
         ICL_BIClow_step2[1]   = ICL_BIClow_step1[1+iT_currbest-iT_min]
         ICL_BIChigh_step2[1]  = ICL_BIClow_step1[1+iT_currbest-iT_min]
       } else{
-        start     = meas_Init_poly(mY,id_high,vNj,i,iT_currbest,ivItemcat)
+        start     = meas_Init_poly(mY,id_high,vNj,i,iT_currbest,ivItemcat,incomplete,kmea,maxIter,tol,reord)
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
-        outmuLCA2[[1+i-iM_min]]         = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat)
+        if(!incomplete){
+          outmuLCA2[[1+i-iM_min]]         = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+        } else{
+          mY[is.na(mY)] = max(na.omit(mY))+1
+          outmuLCA2[[1+i-iM_min]]         = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+        }
         BIClow_step2[1+i-iM_min]        = outmuLCA2[[1+i-iM_min]]$BIClow
         BIChigh_step2[1+i-iM_min]       = outmuLCA2[[1+i-iM_min]]$BIChigh
         AIC_step2[1+i-iM_min]           = outmuLCA2[[1+i-iM_min]]$AIC
@@ -1229,11 +1544,16 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
         close(pb)
       }
       #
-      if(i>2){
-        start     = meas_Init_poly(mY,id_high,vNj,iM_currbest,i,ivItemcat)
+      if(i>1){
+        start     = meas_Init_poly(mY,id_high,vNj,iM_currbest,i,ivItemcat,incomplete,kmea,maxIter,tol,reord)
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
-        outmuLCA3[[1+i-iT_min]]       = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat)
+        if(!incomplete){
+          outmuLCA3[[1+i-iT_min]]       = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+        } else{
+          mY[is.na(mY)] = max(na.omit(mY))+1
+          outmuLCA3[[1+i-iT_min]]       = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+        }
         BIClow_step3[1+i-iT_min]      = outmuLCA3[[1+i-iT_min]]$BIClow
         BIChigh_step3[1+i-iT_min]     = outmuLCA3[[1+i-iT_min]]$BIChigh
         AIC_step3[1+i-iT_min]         = outmuLCA3[[1+i-iT_min]]$AIC
@@ -1255,7 +1575,7 @@ lukosel_fun_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,verbose){
               ICL_BIClow_step3 = ICL_BIClow_step3, ICL_BIChigh_step3 = ICL_BIChigh_step3))
 }
 #
-sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbose){
+sel_other_poly = function(mY,mDesign,id_high,iT_range,iM_range,ivItemcat,approach,verbose,kmea,maxIter,tol,reord){
   iH      = sum(ivItemcat-1)
   K       = iH
   vNj     = table(id_high-1)
@@ -1273,6 +1593,7 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbos
       }
     }
   }
+  incomplete = !is.null(mDesign)
   #
   if(approach=="model selection on low"|approach=="model selection on low with high"){
     BIClow      = rep(NA,num_iT)
@@ -1292,7 +1613,7 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbos
         #
         if(i==1){
           outmuLCA[[1]]   = NA
-          llfoo           = sum(apply(mY,2,function(x){dbinom(x,1,mean(x),log=T)}))
+          llfoo           = sum(apply(mY,2,function(x){dbinom(x,1,mean(x,na.rm=T),log=T)}),na.rm=T)
           BIClow[1]       = -2*llfoo + K*log(sum(vNj))
           if(is.null(iM_range)) BIClow[1] = -2*llfoo + K*log(nrow(mY))
           if(!is.null(iM_range)) BIChigh[1] = -2*llfoo + K*log(iN)
@@ -1300,7 +1621,7 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbos
           ICL_BIClow[1]   = Inf
           ICL_BIChigh[1]  = Inf
         } else{
-          outmuLCA[[1+i-iT_min]]  = LCA_fast_init_poly(mY,i,ivItemcat)
+          outmuLCA[[1+i-iT_min]]  = LCA_fast_init_poly(mY,i,ivItemcat,incomplete,kmea,maxIter,tol,reord)
           ll                      = tail(outmuLCA[[1+i-iT_min]]$LLKSeries,1)
           npar                    = i*iH + i - 1
           BIClow[1+i-iT_min]      = outmuLCA[[1+i-iT_min]]$BIC
@@ -1323,10 +1644,15 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbos
         }
         #
         if(i>1){
-          start     = meas_Init_poly(mY,id_high,vNj,iM_range,i,ivItemcat)
+          start     = meas_Init_poly(mY,id_high,vNj,iM_range,i,ivItemcat,incomplete,kmea,maxIter,tol,reord)
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
-          outmuLCA[[1+i-iT_min]]  = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat)
+          if(!incomplete){
+            outmuLCA[[1+i-iT_min]]  = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          } else{
+            mY[is.na(mY)] = max(na.omit(mY))+1
+            outmuLCA[[1+i-iT_min]]  = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          }
           BIClow[1+i-iT_min]      = outmuLCA[[1+i-iT_min]]$BIClow
           BIChigh[1+i-iT_min]     = outmuLCA[[1+i-iT_min]]$BIChigh
           AIC[1+i-iT_min]         = outmuLCA[[1+i-iT_min]]$AIC
@@ -1358,7 +1684,7 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbos
         }
         #
         if(i==1){
-          outmuLCA[[1]]   = LCA_fast_init_poly(mY,iT_range,ivItemcat)
+          outmuLCA[[1]]   = LCA_fast_init_poly(mY,iT_range,ivItemcat,incomplete,kmea,maxIter,tol,reord)
           ll              = tail(outmuLCA[[1]]$LLKSeries,1)
           npar            = i*iH + i - 1
           BIClow[1]       = outmuLCA[[1]]$BIC
@@ -1367,10 +1693,15 @@ sel_other_poly = function(mY,id_high,iT_range,iM_range,ivItemcat,approach,verbos
           ICL_BIClow[1]   = BIClow[i] + 2*sum(outmuLCA[[1]]$freq*apply(-outmuLCA[[1]]$mU*log(outmuLCA[[1]]$mU),1,sum))
           ICL_BIChigh[1]  = Inf
         } else{
-          start     = meas_Init_poly(mY,id_high,vNj,i,iT_range,ivItemcat)
+          start     = meas_Init_poly(mY,id_high,vNj,i,iT_range,ivItemcat,incomplete,kmea,maxIter,tol,reord)
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
-          outmuLCA[[1+i-iM_min]]    = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat)
+          if(!incomplete){
+            outmuLCA[[1+i-iM_min]]    = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          } else{
+            mY[is.na(mY)] = max(na.omit(mY))+1
+            outmuLCA[[1+i-iM_min]]    = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          }
           BIClow[1+i-iM_min]        = outmuLCA[[1+i-iM_min]]$BIClow
           BIChigh[1+i-iM_min]       = outmuLCA[[1+i-iM_min]]$BIChigh
           AIC[1+i-iM_min]           = outmuLCA[[1+i-iM_min]]$AIC
@@ -1574,14 +1905,14 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout,ivItemcat){
     out$AIC = output$AIC
     
     # Add gammas
-    out$cGamma          = output$beta
-    rownames(out$cGamma) = paste0("gamma(",Z,"|C)")
-    colnames(out$cGamma) = paste0("C",2:iT)
+    out$mGamma          = output$beta
+    rownames(out$mGamma) = paste0("gamma(",Z,"|C)")
+    colnames(out$mGamma) = paste0("C",2:iT)
     
     # Add corrected standard errors for gamma
     out$SEs_cor_gamma            = matrix(output$SEs_cor[1:((iT-1)*P),],P,iT-1)
-    rownames(out$SEs_cor_gamma)  = rownames(out$cGamma)
-    colnames(out$SEs_cor_gamma)  = colnames(out$cGamma)
+    rownames(out$SEs_cor_gamma)  = rownames(out$mGamma)
+    colnames(out$SEs_cor_gamma)  = colnames(out$mGamma)
     
     # Add number of iterations
     out$iter = output$iter
@@ -1651,9 +1982,9 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout,ivItemcat){
     out$AIC = output$AIC
     
     # Add gammas
-    out$cGamma          = output$beta
-    rownames(out$cGamma) = paste0("gamma(",Z,"|C)")
-    colnames(out$cGamma) = paste0("C",2:iT)
+    out$mGamma          = output$beta
+    rownames(out$mGamma) = paste0("gamma(",Z,"|C)")
+    colnames(out$mGamma) = paste0("C",2:iT)
     
     # Add betas
     out$mBeta           = output$gamma
@@ -1662,7 +1993,7 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout,ivItemcat){
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$cGamma),1,nchar(rownames(out$cGamma))-2),iT-1),rep(colnames(out$cGamma),rep(P,iT-1)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
+    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mGamma),1,nchar(rownames(out$mGamma))-2),iT-1),rep(colnames(out$mGamma),rep(P,iT-1)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
     colnames(out$parvec)  = ""
     
     # Add vector of uncorrected standard errors
@@ -1677,8 +2008,8 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout,ivItemcat){
     
     # Add corrected standard errors for gamma
     out$SEs_cor_gamma            = matrix(output$SEs_cor[1:((iT-1)*P),],P,iT-1)
-    rownames(out$SEs_cor_gamma)  = rownames(out$cGamma)
-    colnames(out$SEs_cor_gamma)  = colnames(out$cGamma)
+    rownames(out$SEs_cor_gamma)  = rownames(out$mGamma)
+    colnames(out$SEs_cor_gamma)  = colnames(out$mGamma)
     
     # Add mQ
     out$mQ            = output$mQ
@@ -1694,7 +2025,7 @@ clean_output2 = function(output,Y,iT,Z,iH,P,extout,dataout,ivItemcat){
     
     # Add inverse of the information matrix from the second step
     out$mV2           = output$mV2
-    rownames(out$mV2) = colnames(out$mV2) = paste0(rep(substr(rownames(out$cGamma),1,nchar(rownames(out$cGamma))-2),iT-1),rep(colnames(out$cGamma),rep(P,iT-1)),")")
+    rownames(out$mV2) = colnames(out$mV2) = paste0(rep(substr(rownames(out$mGamma),1,nchar(rownames(out$mGamma))-2),iT-1),rep(colnames(out$mGamma),rep(P,iT-1)),")")
     
     # Add number of iterations
     out$iter = output$iter
@@ -1994,11 +2325,20 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     out$AIC = output$AIC
     
     # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    if(is.null(output$mGamma_fixslope)){
+      out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    } else{
+      out$mGamma_fixslope = output$mGamma_fixslope
+      rownames(out$mGamma_fixslope) = c(paste0("gamma(",Z[1],"_C)+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C)"))
+      colnames(out$mGamma_fixslope) = paste0("C",2:iT)
+    }
     
     # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
-    
+    if(is.null(output$mGamma_fixslope)){
+      out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    } else{
+      out$SEs_cor_gamma = matrix(output$SEs_cor[iM:(iM-1+(iM+P-1)*(iT-1))],iM+P-1,(iT-1),dimnames=dimnames(out$mGamma_fixslope))
+    }
     
     # Add number of iterations
     out$iter = output$iter
@@ -2150,7 +2490,13 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     colnames(out$vAlpha)  = ""
     
     # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),paste0("G",1:iM)))
+    if(is.null(output$mGamma_fixslope)){
+      out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    } else{
+      out$mGamma_fixslope = output$mGamma_fixslope
+      rownames(out$mGamma_fixslope) = c(paste0("gamma(",Z[1],"_C)+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C)"))
+      colnames(out$mGamma_fixslope) = paste0("C",2:iT)
+    }
     
     # Add betas
     out$mBeta           = output$mBeta
@@ -2159,44 +2505,56 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
+    if(is.null(output$mGamma_fixslope)){
+      rownames(out$parvec)  = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
+    } else{
+      rownames(out$parvec)  = c(rownames(out$vAlpha),unlist(lapply(2:iT,function(x){c(paste0("gamma(",Z[1],"_C",x,")+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C",x,")"))})),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
+    }
     colnames(out$parvec)  = ""
     
     # Add vector of uncorrected standard errors
-    out$SEs_unc           = as.matrix(output$SEs_unc[1:(iM-1+P*(iT-1)*iM),])
-    rownames(out$SEs_unc) = rownames(out$mV2)
-    colnames(out$SEs_unc) = ""
+    out$SEs_unc           = output$SEs_unc
+    dimnames(out$SEs_unc) = dimnames(out$parvec)
     
     # Add vector of corrected standard errors
-    out$SEs_cor           = as.matrix(output$SEs_cor[1:(iM-1+P*(iT-1)*iM),])
-    rownames(out$SEs_cor) = rownames(out$mV2)
-    colnames(out$SEs_cor) = ""
+    out$SEs_cor           = output$SEs_cor
+    dimnames(out$SEs_cor) = dimnames(out$parvec)
     
     # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma), dimnames=dimnames(out$cGamma))
+    if(is.null(output$mGamma_fixslope)){
+      out$SEs_cor_gamma = array(apply(array(output$SEs_cor[iM:(iM-1+(P*(iT-1)*iM))],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    } else{
+      out$SEs_cor_gamma = matrix(output$SEs_cor[iM:(iM-1+(iM+P-1)*(iT-1))],iM+P-1,(iT-1),dimnames=dimnames(out$mGamma_fixslope))
+    }
     
     # Add mQ
-    out$mQ            = output$mQ
-    rownames(out$mQ)  = colnames(out$mQ) = rownames(out$mV2)
+    out$mQ = output$mQ
+    if(is.null(output$mGamma_fixslope)){
+      rownames(out$mQ)  = colnames(out$mQ) = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
+    } else{
+      rownames(out$mQ)  = colnames(out$mQ) = c(rownames(out$vAlpha),unlist(lapply(2:iT,function(x){c(paste0("gamma(",Z[1],"_C",x,")+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C",x,")"))})))
+    }
     
     # Add uncorrected variance-covariance matrix
-    out$Varmat_unc            = output$Varmat[1:(iM-1+P*(iT-1)*iM),1:(iM-1+P*(iT-1)*iM)]
-    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
+    out$Varmat_unc            = output$Varmat
+    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$parvec)
     
     # Add corrected variance-covariance matrix
     out$Varmat_cor            = output$mVar_corr
-    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$mV2)
+    dimnames(out$Varmat_cor) = dimnames(out$mQ)
     
     # Add Fisher information matrix
     out$Infomat           = output$Infomat
-    rownames(out$Infomat) = rownames(out$parvec)
+    rownames(out$Infomat) = colnames(out$Infomat) = rownames(out$parvec)
     
     # Add cube of Fisher information matrix for gamma
-    out$cGamma_Info = array(output$cGamma_Info,dim(output$cGamma_Info),dimnames=list(paste0("gamma(",Z,"|C,G)"),paste0("gamma(",Z,"|C,G)"),paste0("C", 2:iT,rep(paste0(",G", 1:iM),rep(iT-1,iM)))))
+    if(is.null(output$mGamma_fixslope)){
+      out$cGamma_Info = array(output$cGamma_Info,dim(output$cGamma_Info),dimnames=list(paste0("gamma(",Z,"|C,G)"),paste0("gamma(",Z,"|C,G)"),paste0("C", 2:iT,rep(paste0(",G", 1:iM),rep(iT-1,iM)))))
+    }
     
     # Add inverse of the information matrix from the second step
     out$mV2           = output$mV2
-    rownames(out$mV2) = colnames(out$mV2) = c(rownames(out$vAlpha),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
+    dimnames(out$mV2) = dimnames(out$mQ)
     
     # Add number of iterations
     out$iter = output$iter
@@ -2217,8 +2575,12 @@ clean_output4 = function(output,Y,iT,iM,Z,mY,mZ,id_high,iH,P,id_high_levs,id_hig
     colnames(out$mScore)  = rownames(out$parvec)
     
     # Add subset of matrix of model parameter contributions to log-likelihood score for gamma
-    out$mGamma_Score            = output$mGamma_Score
-    colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
+    out$mGamma_Score = output$mGamma_Score
+    if(is.null(output$mGamma_fixslope)){
+      colnames(out$mGamma_Score) = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
+    } else{
+      colnames(out$mGamma_Score) = unlist(lapply(2:iT,function(x){c(paste0("gamma(",Z[1],"_C",x,")+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C",x,")"))}))
+    }
     
     # Add specification
     out$spec            = as.matrix("Multilevel LC model with lower-level covariates")
@@ -2275,7 +2637,13 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     colnames(out$mAlpha)  = paste0("G",2:iM)
     
     # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    if(is.null(output$mGamma_fixslope)){
+      out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    } else{
+      out$mGamma_fixslope = output$mGamma_fixslope
+      rownames(out$mGamma_fixslope) = c(paste0("gamma(",Z[1],"_C)+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C)"))
+      colnames(out$mGamma_fixslope) = paste0("C",2:iT)
+    }
     
     # Add corrected standard errors for alpha
     out$SEs_cor_alpha = t(matrix(output$SEs_cor[1:(P_high*(iM-1))],iM-1,P_high))
@@ -2283,7 +2651,11 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     colnames(out$SEs_cor_alpha) = colnames(out$mAlpha)
     
     # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    if(is.null(output$mGamma_fixslope)){
+      out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    } else{
+      out$SEs_cor_gamma = matrix(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+(iM+P-1)*(iT-1))],iM+P-1,(iT-1),dimnames=dimnames(out$mGamma_fixslope))
+    }
     
     # Add number of iterations
     out$iter = output$iter
@@ -2453,7 +2825,13 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     colnames(out$mAlpha)  = paste0("G",2:iM)
     
     # Add gammas
-    out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    if(is.null(output$mGamma_fixslope)){
+      out$cGamma = array(apply(output$cGamma,3,t),c(P,iT-1,iM),dimnames=list(paste0("gamma(",Z,"|C)"),paste0("C",2:iT,",G"),colnames(out$mPi_avg)))
+    } else{
+      out$mGamma_fixslope = output$mGamma_fixslope
+      rownames(out$mGamma_fixslope) = c(paste0("gamma(",Z[1],"_C)+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C)"))
+      colnames(out$mGamma_fixslope) = paste0("C",2:iT)
+    }
     
     # Add betas
     out$mBeta           = output$mBeta
@@ -2462,18 +2840,20 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     
     # Add vector of model parameters
     out$parvec            = output$parvec
-    rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
+    if(is.null(output$mGamma_fixslope)){
+      rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
+    } else{
+      rownames(out$parvec)  = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),unlist(lapply(2:iT,function(x){c(paste0("gamma(",Z[1],"_C",x,")+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C",x,")"))})),paste0(rep(substr(rownames(out$mBeta),1,nchar(rownames(out$mBeta))-2),iT),rep(colnames(out$mBeta),rep(nrow(out$mBeta),iT)),")"))
+    }
     colnames(out$parvec)  = ""
     
     # Add vector of uncorrected standard errors
-    out$SEs_unc           = as.matrix(output$SEs_unc[1:(P_high*(iM-1)+P*(iT-1)*iM),])
-    rownames(out$SEs_unc) = rownames(out$mV2)
-    colnames(out$SEs_unc) = ""
+    out$SEs_unc           = output$SEs_unc
+    dimnames(out$SEs_unc) = dimnames(out$parvec)
     
     # Add vector of corrected standard errors
-    out$SEs_cor           = as.matrix(output$SEs_cor[1:(P_high*(iM-1)+P*(iT-1)*iM),])
-    rownames(out$SEs_cor) = rownames(out$mV2)
-    colnames(out$SEs_cor) = ""
+    out$SEs_cor           = output$SEs_cor
+    dimnames(out$SEs_cor) = dimnames(out$parvec)
     
     # Add corrected standard errors for alpha
     out$SEs_cor_alpha = t(matrix(output$SEs_cor[1:(P_high*(iM-1))],iM-1,P_high))
@@ -2481,19 +2861,27 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     colnames(out$SEs_cor_alpha) = colnames(out$mAlpha)
     
     # Add corrected standard errors for gamma
-    out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    if(is.null(output$mGamma_fixslope)){
+      out$SEs_cor_gamma = array(apply(array(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+P*(iT-1)*iM)],c(iT-1,P,iM)),3,t),dim(out$cGamma),dimnames=dimnames(out$cGamma))
+    } else{
+      out$SEs_cor_gamma = matrix(output$SEs_cor[(1+P_high*(iM-1)):(P_high*(iM-1)+(iM+P-1)*(iT-1))],iM+P-1,(iT-1),dimnames=dimnames(out$mGamma_fixslope))
+    }
     
     # Add mQ
-    out$mQ            = output$mQ
-    rownames(out$mQ)  = colnames(out$mV2) = rownames(out$mV2)
+    out$mQ = output$mQ
+    if(is.null(output$mGamma_fixslope)){
+      rownames(out$mQ)  = colnames(out$mQ) = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
+    } else{
+      rownames(out$mQ)  = colnames(out$mQ) = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),unlist(lapply(2:iT,function(x){c(paste0("gamma(",Z[1],"_C",x,")+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C",x,")"))})))
+    }
     
     # Add uncorrected variance-covariance matrix
-    out$Varmat_unc            = output$Varmat[1:(P_high*(iM-1)+P*(iT-1)*iM),1:(P_high*(iM-1)+P*(iT-1)*iM)]
-    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$mV2)
+    out$Varmat_unc            = output$Varmat
+    rownames(out$Varmat_unc)  = colnames(out$Varmat_unc) = rownames(out$parvec)
     
     # Add corrected variance-covariance matrix
     out$Varmat_cor            = output$mVar_corr
-    rownames(out$Varmat_cor)  = colnames(out$Varmat_cor) = rownames(out$Varmat_unc)
+    dimnames(out$Varmat_cor) = dimnames(out$mQ)
     
     # Add Fisher information matrix
     out$Infomat           = output$Infomat
@@ -2503,11 +2891,13 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     out$cAlpha_Info = array(output$cDelta_Info, dim(output$cDelta_Info), dimnames=list(paste0("alpha(",Zh,"|G)"),paste0("alpha(",Zh,"|G)"),colnames(out$mAlpha)))
     
     # Add cube of Fisher information matrix for gamma
-    out$cGamma_Info = array(output$cGamma_Info, dim(output$cGamma_Info), dimnames=list(paste0("gamma(",Z,"|C,G)"),paste0("gamma(",Z,"|C,G)"),paste0("C",2:iT,rep(paste0(",G",1:iM),rep(iT-1,iM)))))
+    if(is.null(output$mGamma_fixslope)){
+      out$cGamma_Info = array(output$cGamma_Info, dim(output$cGamma_Info), dimnames=list(paste0("gamma(",Z,"|C,G)"),paste0("gamma(",Z,"|C,G)"),paste0("C",2:iT,rep(paste0(",G",1:iM),rep(iT-1,iM)))))
+    }
     
     # Add inverse of the information matrix from the second step
     out$mV2           = output$mV2
-    rownames(out$mV2) = colnames(out$mV2) = c(paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")"),paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")"))
+    dimnames(out$mV2) = dimnames(out$mQ)
     
     # Add number of iterations
     out$iter = output$iter
@@ -2533,8 +2923,12 @@ clean_output5 = function(output,Y,iT,iM,Z,Zh,mY,mZ,mZh,id_high,iH,P,P_high,id_hi
     colnames(out$mAlpha_Score)  = paste0(rep(substr(rownames(out$mAlpha),1,nchar(rownames(out$mAlpha))-2),rep(iM-1,P_high)),rep(colnames(out$mAlpha),P_high),")")
     
     # Add subset of matrix of model parameter contributions to log-likelihood score for gamma
-    out$mGamma_Score            = output$mGamma_Score
-    colnames(out$mGamma_Score)  = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
+    out$mGamma_Score = output$mGamma_Score
+    if(is.null(output$mGamma_fixslope)){
+      colnames(out$mGamma_Score) = paste0(apply(out$cGamma,3,function(x){paste0(rep(substr(rownames(x),1,nchar(rownames(x))-2),rep(iT-1,P)),rep(substr(colnames(x),1,nchar(colnames(x))-2),P),",")}),rep(unlist(dimnames(out$cGamma)[3]),rep(P*(iT-1),iM)),")")
+    } else{
+      colnames(out$mGamma_Score) = unlist(lapply(2:iT,function(x){c(paste0("gamma(",Z[1],"_C",x,")+gamma(",Z[1],"|G",1:iM,")"),paste0("gamma(",Z[-1],"|C",x,")"))}))
+    }
     
     # Add specification
     out$spec            = as.matrix("Multilevel LC model with lower- and higher-level covariates")
@@ -2571,7 +2965,7 @@ clean_cov = function(data,covnam){
   return(list(cov=cov,covnam=covnam))
 }
 #
-update_YmY = function(mY,Y,ivItemcat){
+update_YmY = function(mY,Y,ivItemcat,mDesign){
   Y_upd = c()
   for(i in Y){
     if(ivItemcat[i]>2){
@@ -2582,6 +2976,10 @@ update_YmY = function(mY,Y,ivItemcat){
       mY_upd  = mY[,i,drop=FALSE]
       Y_upd   = c(Y_upd,i)
     }
+    if(!is.null(mDesign)){
+      row_missing = mDesign[,i]==0
+      mY_upd[row_missing,] = NA
+    }
     mY = mY[,-which(colnames(mY)==i)]
     mY = cbind(mY,mY_upd)
   }
@@ -2590,7 +2988,7 @@ update_YmY = function(mY,Y,ivItemcat){
   return(list(mY=mY,Y=Y))
 }
 #
-update_YmY_nonnum = function(mY,Y,ivItemcat){
+update_YmY_nonnum = function(mY,Y,ivItemcat,mDesign){
   itemnam = lapply(data.frame(mY),function(x){levels(factor(x))})
   mY      = apply(mY,2,function(x){as.numeric(factor(x))-1})
   Y_upd   = c()
@@ -2603,6 +3001,10 @@ update_YmY_nonnum = function(mY,Y,ivItemcat){
       mY_upd  = mY[,i,drop=FALSE]
       Y_upd   = c(Y_upd,paste0(i,".",itemnam[[i]][2]))
     }
+    if(!is.null(mDesign)){
+      row_missing = mDesign[,i]==0
+      mY_upd[row_missing,] = NA
+    }
     mY = mY[,-which(colnames(mY)==i)]
     mY = cbind(mY,mY_upd)
   }
@@ -2611,7 +3013,7 @@ update_YmY_nonnum = function(mY,Y,ivItemcat){
   return(list(mY=mY,Y=Y))
 }
 #
-check_inputs1 = function(data,Y,iT,id_high,iM,Z,Zh){
+check_inputs1 = function(data,Y,iT,id_high,iM,Z,Zh,startval){
   
   # <data> is matrix or dataframe
   if(!(is.matrix(data)|is.data.frame(data))){
@@ -2620,27 +3022,32 @@ check_inputs1 = function(data,Y,iT,id_high,iM,Z,Zh){
     
   }
   
-  # <Y>, <id_high>, <Z> and <Zh> are column names in <data>
-  if(any(!c(Y,id_high,Z,Zh)%in%colnames(data))){
+  # <Y>, <id_high>, <Z>, <Zh> and <startval> are column names in <data>
+  if(any(!c(Y,id_high,Z,Zh,startval)%in%colnames(data))){
     
     if(any(!Y%in%colnames(data))){
       
-      stop("Not all Y in data.",call.=FALSE)
+      stop("At least one element of Y not found in data.",call.=FALSE)
       
     }
     if(!is.null(id_high)&any(!id_high%in%colnames(data))){
       
-      stop("id_high not in data.",call.=FALSE)
+      stop("id_high not found in data.",call.=FALSE)
       
     }
     if(!is.null(Z)&any(!Z%in%colnames(data))){
       
-      stop("Not all Z in data.",call.=FALSE)
+      stop("At least one element of Z not found in data.",call.=FALSE)
       
     }
     if(!is.null(Zh)&any(!Zh%in%colnames(data))){
       
-      stop("Not all Zh in data.",call.=FALSE)
+      stop("At least one element of Zh not found in data.",call.=FALSE)
+      
+    }
+    if(!is.null(startval)&any(!startval%in%colnames(data))){
+      
+      stop("startval not found in data.",call.=FALSE)
       
     }
     
@@ -2648,7 +3055,7 @@ check_inputs1 = function(data,Y,iT,id_high,iM,Z,Zh){
   
 }
 #
-check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
+check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh,startval){
   
   # Single <id_high>
   if(!is.null(id_high)){
@@ -2656,6 +3063,17 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
     if(length(id_high)!=1){
       
       stop("Invalid id_high.",call.=FALSE)
+      
+    }
+    
+  }
+  
+  # Single <startval>
+  if(!is.null(startval)){
+    
+    if(length(startval)!=1){
+      
+      stop("Invalid startval",call.=FALSE)
       
     }
     
@@ -2776,8 +3194,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
   }
   
   # <Y> consecutive integers from 0 or be non-numeric character
-  if(any(sapply(as.data.frame(data[,Y]),function(x){(any(sort(unique(x))!=0:(length(unique(x))-1)))&!is.character(x)}))){
-    
+  if(any(sapply(as.data.frame(data[,Y]),function(x){(any(sort(na.omit(unique(x)))!=0:(length(na.omit(unique(x)))-1)))&!is.character(x)}))){  
     stop("Items must contain consecutive integers from 0 or be non-numeric character.",call.=FALSE)
     
   }
@@ -2786,6 +3203,13 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
   if(any(is.na(data[,id_high]))){
     
     stop("id_high cannot contain missing values.",call.=FALSE)
+    
+  }
+  
+  # No missings in <startval>
+  if(any(is.na(data[,startval]))){
+    
+    stop("startval cannot contain missing values.",call.=FALSE)
     
   }
   
@@ -2810,7 +3234,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
     
     if(length(Z)>2){
       
-      if(any(duplicated(as.list(data[,Z])))){
+      if(any(duplicated(as.list(as.data.frame(data[,Z]))))){
         
         stop("Duplicate lower-level covariates.",call.=FALSE)
         
@@ -2834,14 +3258,12 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
   }
   
   # No constant <Y>, <Z> or <Zh>
-  if(any(apply(data[,Y],2,function(x){length(unique(x))==1}))){
-    
+  if(any(apply(data[,Y],2,function(x){length(na.omit(unique(x)))==1}))){  
     stop("Constant in indicators.",call.=FALSE)
     
   }
   if(!is.null(Z)){
-    
-    if(any(apply(data[,Z,drop=FALSE],2,function(x){length(unique(x))==1}))){
+    if(any(apply(data[,Z,drop=FALSE],2,function(x){length(na.omit(unique(x)))==1}))){
       
       stop("Constant in lower-level covariates.",call.=FALSE)
       
@@ -2849,9 +3271,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh){
     
   }
   if(!is.null(Zh)){
-    
-    if(any(apply(data[,Zh,drop=FALSE],2,function(x){length(unique(x))==1}))){
-      
+    if(any(apply(data[,Zh,drop=FALSE],2,function(x){length(na.omit(unique(x)))==1}))){  
       stop("Constant in higher-level covariates.",call.=FALSE)
       
     }
@@ -2958,6 +3378,10 @@ print.multiLCA = function(x,...){
     print(x$call)
     cat("\nSPECIFICATION:\n")
     print(noquote(x$spec))
+    cat("\nMISSING VALUES ON THE INDICATORS:\n")
+    print(noquote(x$missing_values))
+    cat("\nFINAL SAMPLE SIZE:\n")
+    print(x$sample_size)
     
     iter            = t(matrix(c(x$iter, x$LLKSeries[1], tail(x$LLKSeries, 1))))
     colnames(iter)  = c("EMiter", "LLfirst", "LLlast")
@@ -2990,6 +3414,10 @@ print.multiLCA = function(x,...){
     print(x$call)
     cat("\nSPECIFICATION:\n")
     print(noquote(x$spec))
+    cat("\nMISSING VALUES ON THE INDICATORS:\n")
+    print(noquote(x$missing_values))
+    cat("\nFINAL SAMPLE SIZE:\n")
+    print(x$sample_size)
     
     iter            = t(matrix(c(x$iter, x$LLKSeries[1], tail(x$LLKSeries, 1))))
     colnames(iter)  = c("EMiter", "LLfirst", "LLlast")
@@ -3003,7 +3431,7 @@ print.multiLCA = function(x,...){
     cat("\nRESPONSE PROBABILITIES:\n\n")
     print(round(x$mPhi, 4))
     cat("\n---------------------------\n")
-    cat("\nMODEL AND CLASSIFICATION STATISTICS:\n")
+    cat("\nMODEL AND CLASSIFICATION STATISTICS:\n\n")
     
     stat             = as.matrix(c(as.character(round(x$AvgClassErrProb, 4)), as.character(round(x$R2entr, 4)), as.character(round(x$BIC, 4)), as.character(round(x$AIC, 4))))
     rownames(stat)   = c("ClassErr", "EntR-sqr", "BIC", "AIC")
@@ -3014,11 +3442,12 @@ print.multiLCA = function(x,...){
     
     cat("\n---------------------------\n")
     cat("\nLOGISTIC MODEL FOR CLASS MEMBERSHIP:\n\n")
+    cat("Estimator:",noquote(x$estimator),"\n\n")
     
-    gammas  = format(round(as.matrix(x$cGamma), 4), nsmall = 4, scientific = FALSE)
+    gammas  = format(round(as.matrix(x$mGamma), 4), nsmall = 4, scientific = FALSE)
     SE      = format(round(as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
-    Zscore  = format(round(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
-    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma)/as.matrix(x$SEs_cor_gamma)))), 4), nsmall = 4, scientific = FALSE)
+    Zscore  = format(round(as.matrix(x$mGamma)/as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
+    pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$mGamma)/as.matrix(x$SEs_cor_gamma)))), 4), nsmall = 4, scientific = FALSE)
     psignf  = matrix("   ", nrow(gammas), ncol(gammas))
     psignf[pval < 0.1 & pval >= 0.05]   = "*  "
     psignf[pval < 0.05 & pval >= 0.01]  = "** "
@@ -3029,7 +3458,7 @@ print.multiLCA = function(x,...){
       C = paste0("C", 1 + i)
       logit_params = noquote(cbind(gammas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
       colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
-      rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma)), 1, nchar(rownames(as.matrix(x$cGamma))) - 1), 1 + i, ")")
+      rownames(logit_params) = paste0(substr(rownames(as.matrix(x$mGamma)), 1, nchar(rownames(as.matrix(x$mGamma))) - 1), 1 + i, ")")
       
       cat("\nMODEL FOR", C, "(BASE C1)\n\n")
       print(logit_params, right = TRUE)
@@ -3048,6 +3477,10 @@ print.multiLCA = function(x,...){
     print(x$call)
     cat("\nSPECIFICATION:\n")
     print(noquote(x$spec))
+    cat("\nMISSING VALUES ON THE INDICATORS:\n")
+    print(noquote(x$missing_values))
+    cat("\nFINAL SAMPLE SIZE:\n")
+    print(x$sample_size)
     
     iter            = t(matrix(c(x$iter, x$LLKSeries[1], tail(x$LLKSeries, 1))))
     colnames(iter)  = c("EMiter", "LLfirst", "LLlast")
@@ -3081,6 +3514,10 @@ print.multiLCA = function(x,...){
     print(x$call)
     cat("\nSPECIFICATION:\n")
     print(noquote(x$spec))
+    cat("\nMISSING VALUES ON THE INDICATORS:\n")
+    print(noquote(x$missing_values))
+    cat("\nFINAL SAMPLE SIZE:\n")
+    print(x$sample_size)
     
     iter            = t(matrix(c(x$iter, x$LLKSeries[1], tail(x$LLKSeries, 1))))
     colnames(iter)  = c("EMiter", "LLfirst", "LLlast")
@@ -3107,34 +3544,66 @@ print.multiLCA = function(x,...){
     
     cat("\n---------------------------\n")
     cat("\nLOGISTIC MODEL FOR LOWER-LEVEL CLASS MEMBERSHIP:\n\n")
+    cat("Estimator:",noquote(x$estimator),"\n\n")
+    if(!is.null(x$mGamma_fixslope)){
+      cat("Fixed slopes across higher-level classes\n\n")
+    }
     
-    for (i in 1:dim(x$cGamma)[3]){
-      
-      gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4, scientific = FALSE)
-      SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
-      Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
-      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4, scientific = FALSE)
+    if(is.null(x$mGamma_fixslope)){
+      for (i in 1:dim(x$cGamma)[3]){
+        
+        gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+        SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+        Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+        pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4, scientific = FALSE)
+        psignf  = matrix("   ", nrow(gammas), ncol(gammas))
+        psignf[pval < 0.1 & pval >= 0.05]   = "*  "
+        psignf[pval < 0.05 & pval >= 0.01]  = "** "
+        psignf[pval < 0.01]                 = "***"
+        
+        for (j in 1:ncol(gammas)){
+          
+          G = paste0("G", i)
+          C = paste0("C", 1 + j)
+          logit_params = noquote(cbind(gammas[,j], SE[,j], Zscore[,j], matrix(paste0(pval[,j], psignf[,j]))))
+          colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
+          rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, ",G", i, ")")
+          
+          cat("\nMODEL FOR", C, "(BASE C1) GIVEN", G, "\n\n")
+          print(logit_params, right = TRUE)
+          cat("\n")
+          cat("\n", "*** p < 0.01, ** p < 0.05, * p < 0.1")
+          cat("\n")
+          
+        }
+        
+      }
+    } else{
+      gammas  = format(round(as.matrix(x$mGamma_fixslope), 4), nsmall = 4, scientific = FALSE)
+      SE      = format(round(as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
+      Zscore  = format(round(as.matrix(x$mGamma_fixslope)/as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
+      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$mGamma_fixslope)/as.matrix(x$SEs_cor_gamma)))), 4), nsmall = 4, scientific = FALSE)
       psignf  = matrix("   ", nrow(gammas), ncol(gammas))
       psignf[pval < 0.1 & pval >= 0.05]   = "*  "
       psignf[pval < 0.05 & pval >= 0.01]  = "** "
       psignf[pval < 0.01]                 = "***"
       
-      for (j in 1:ncol(gammas)){
+      iM = nrow(x$vOmega)
+      
+      for (i in 1:ncol(gammas)){
         
-        G = paste0("G", i)
-        C = paste0("C", 1 + j)
-        logit_params = noquote(cbind(gammas[,j], SE[,j], Zscore[,j], matrix(paste0(pval[,j], psignf[,j]))))
+        C = paste0("C", 1 + i)
+        logit_params = noquote(cbind(gammas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
         colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
-        rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, ",G", i, ")")
+        rownames(logit_params) = c(paste0(substr(rownames(as.matrix(x$mGamma_fixslope))[1:iM], 1, 17), 1 + i, substr(rownames(as.matrix(x$mGamma_fixslope))[1:iM], 18, nchar(rownames(as.matrix(x$mGamma_fixslope))[1:iM]))),
+                                   paste0(substr(rownames(as.matrix(x$mGamma_fixslope))[-c(1:iM)], 1, nchar(rownames(as.matrix(x$mGamma_fixslope))[-c(1:iM)]) - 1), 1 + i, ")"))
         
-        cat("\nMODEL FOR", C, "(BASE C1) GIVEN", G, "\n\n")
+        cat("\nMODEL FOR", C, "(BASE C1)\n\n")
         print(logit_params, right = TRUE)
         cat("\n")
         cat("\n", "*** p < 0.01, ** p < 0.05, * p < 0.1")
         cat("\n")
-        
       }
-      
     }
     
   } else if(x$spec == "Multilevel LC model with lower- and higher-level covariates"){
@@ -3147,6 +3616,10 @@ print.multiLCA = function(x,...){
     print(x$call)
     cat("\nSPECIFICATION:\n")
     print(noquote(x$spec))
+    cat("\nMISSING VALUES ON THE INDICATORS:\n")
+    print(noquote(x$missing_values))
+    cat("\nFINAL SAMPLE SIZE:\n")
+    print(x$sample_size)
     
     iter            = t(matrix(c(x$iter, x$LLKSeries[1], tail(x$LLKSeries, 1))))
     colnames(iter)  = c("EMiter", "LLfirst", "LLlast")
@@ -3173,6 +3646,7 @@ print.multiLCA = function(x,...){
     
     cat("\n---------------------------\n")
     cat("\nLOGISTIC MODEL FOR HIGHER-LEVEL CLASS MEMBERSHIP:\n\n")
+    cat("Estimator:",noquote(x$estimator),"\n\n")
     
     alphas  = format(round(as.matrix(x$mAlpha), 4), nsmall = 4, scientific = FALSE)
     SE      = format(round(as.matrix(x$SEs_cor_alpha), 4), nsmall = 4, scientific = FALSE)
@@ -3200,34 +3674,66 @@ print.multiLCA = function(x,...){
     
     cat("\n---------------------------\n")
     cat("\nLOGISTIC MODEL FOR LOWER-LEVEL CLASS MEMBERSHIP:\n\n")
+    cat("Estimator:",noquote(x$estimator),"\n\n")
+    if(!is.null(x$mGamma_fixslope)){
+      cat("Fixed slopes across higher-level classes\n\n")
+    }
     
-    for (i in 1:dim(x$cGamma)[3]){
-      
-      gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4, scientific = FALSE)
-      SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
-      Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
-      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4, scientific = FALSE)
+    if(is.null(x$mGamma_fixslope)){
+      for (i in 1:dim(x$cGamma)[3]){
+        
+        gammas  = format(round(as.matrix(x$cGamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+        SE      = format(round(as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+        Zscore  = format(round(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i]), 4), nsmall = 4, scientific = FALSE)
+        pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$cGamma[,,i])/as.matrix(x$SEs_cor_gamma[,,i])))), 4), nsmall = 4, scientific = FALSE)
+        psignf  = matrix("   ", nrow(gammas), ncol(gammas))
+        psignf[pval < 0.1 & pval >= 0.05]   = "*  "
+        psignf[pval < 0.05 & pval >= 0.01]  = "** "
+        psignf[pval < 0.01]                 = "***"
+        
+        for (j in 1:ncol(gammas)){
+          
+          G = paste0("G", i)
+          C = paste0("C", 1 + j)
+          logit_params = noquote(cbind(gammas[,j], SE[,j], Zscore[,j], matrix(paste0(pval[,j], psignf[,j]))))
+          colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
+          rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, ",G", i, ")")
+          
+          cat("\nMODEL FOR", C, "(BASE C1) GIVEN", G, "\n\n")
+          print(logit_params, right = TRUE)
+          cat("\n")
+          cat("\n", "*** p < 0.01, ** p < 0.05, * p < 0.1")
+          cat("\n")
+          
+        }
+        
+      }
+    } else{
+      gammas  = format(round(as.matrix(x$mGamma_fixslope), 4), nsmall = 4, scientific = FALSE)
+      SE      = format(round(as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
+      Zscore  = format(round(as.matrix(x$mGamma_fixslope)/as.matrix(x$SEs_cor_gamma), 4), nsmall = 4, scientific = FALSE)
+      pval    = format(round(2*(1 - pnorm(abs(as.matrix(x$mGamma_fixslope)/as.matrix(x$SEs_cor_gamma)))), 4), nsmall = 4, scientific = FALSE)
       psignf  = matrix("   ", nrow(gammas), ncol(gammas))
       psignf[pval < 0.1 & pval >= 0.05]   = "*  "
       psignf[pval < 0.05 & pval >= 0.01]  = "** "
       psignf[pval < 0.01]                 = "***"
       
-      for (j in 1:ncol(gammas)){
+      iM = nrow(x$vOmega)
+      
+      for (i in 1:ncol(gammas)){
         
-        G = paste0("G", i)
-        C = paste0("C", 1 + j)
-        logit_params = noquote(cbind(gammas[,j], SE[,j], Zscore[,j], matrix(paste0(pval[,j], psignf[,j]))))
+        C = paste0("C", 1 + i)
+        logit_params = noquote(cbind(gammas[,i], SE[,i], Zscore[,i], matrix(paste0(pval[,i], psignf[,i]))))
         colnames(logit_params) = c("Gamma", "S.E.", "Z-score", "p-value")
-        rownames(logit_params) = paste0(substr(rownames(as.matrix(x$cGamma[,,i])), 1, nchar(rownames(as.matrix(x$cGamma[,,i]))) - 1), j + 1, ",G", i, ")")
+        rownames(logit_params) = c(paste0(substr(rownames(as.matrix(x$mGamma_fixslope))[1:iM], 1, 17), 1 + i, substr(rownames(as.matrix(x$mGamma_fixslope))[1:iM], 18, nchar(rownames(as.matrix(x$mGamma_fixslope))[1:iM]))),
+                                   paste0(substr(rownames(as.matrix(x$mGamma_fixslope))[-c(1:iM)], 1, nchar(rownames(as.matrix(x$mGamma_fixslope))[-c(1:iM)]) - 1), 1 + i, ")"))
         
-        cat("\nMODEL FOR", C, "(BASE C1) GIVEN", G, "\n\n")
+        cat("\nMODEL FOR", C, "(BASE C1)\n\n")
         print(logit_params, right = TRUE)
         cat("\n")
         cat("\n", "*** p < 0.01, ** p < 0.05, * p < 0.1")
         cat("\n")
-        
       }
-      
     }
     
   }
