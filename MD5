@@ -1,11 +1,11 @@
-e9f81f820ce5c16616161b87985a4086 *DESCRIPTION
+5a3d70a6ec8ff08ba4b25260d07aab42 *DESCRIPTION
 57f1cec722ac9bbb8823858ae912acaf *NAMESPACE
-494f72416386dc3d5fb619d90b5a6a09 *R/MLCAfunctions.R
+1aa7c7efe89284f429d6529674d42df8 *R/MLCAfunctions.R
 5d9419b305d8556cab54016357390329 *R/MLCAsimulate.R
 542f8d932a0b056a1ec585e9e06ce445 *R/RcppExports.R
-24f1c0bf120f7abeb13d0b5e4bcc8d41 *build/partial.rdb
-6923cc96cf1ef19c7545cf58722d2cea *data/dataIEA.rda
-1b032aa08fa3b90d351e20dec5b56a33 *data/dataTOY.rda
+38e5d7b409df7292c6f4674647824f3d *build/partial.rdb
+5acc02c9482f2df749c2eca82d362ebd *data/dataIEA.rda
+afa35b3afb3f097ddba34e903cd13952 *data/dataTOY.rda
 339884912aa12235301357f918b6c01b *man/dataIEA.Rd
 3081931f20a54f6ed9747473be7ead3c *man/dataTOY.Rd
 3cb397bed293f026cb84ad77fb8cbb65 *man/multiLCA.Rd

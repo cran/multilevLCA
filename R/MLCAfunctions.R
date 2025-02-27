@@ -480,7 +480,7 @@ multiLCA = function(data, Y, iT,
           library(tictoc)
           library(numDeriv)
           library(klaR)
-          library(tidyverse)
+          library(tidyr)
           library(MASS)})
         simultaneous_out = parallel::parLapply(cluster,1:nmod,
                                                function(x){
@@ -541,7 +541,7 @@ multiLCA = function(data, Y, iT,
           library(tictoc)
           library(numDeriv)
           library(klaR)
-          library(tidyverse)
+          library(tidyr)
           library(MASS)})
         simultaneous_out = parallel::parLapply(cluster,1:nmod,
                                                function(x){
@@ -3232,7 +3232,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh,startval){
   }
   if(!is.null(Z)){
     
-    if(length(Z)>2){
+    if(length(Z)>=2){
       
       if(any(duplicated(as.list(as.data.frame(data[,Z]))))){
         
@@ -3245,9 +3245,9 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh,startval){
   }
   if(!is.null(Zh)){
     
-    if(length(Zh)>2){
+    if(length(Zh)>=2){
       
-      if(any(duplicated(as.list(data[,Zh])))){
+      if(any(duplicated(as.list(as.data.frame(data[,Zh]))))){
         
         stop("Duplicate higher-level covariates.",call.=FALSE)
         
