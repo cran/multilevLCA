@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // LCA_fast_poly_includeall
-List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_LCA_fast_poly_includeall(SEXP mYSEXP, SEXP mDesignSEXP, SEXP ivFreqSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
+List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user, int maxIter, double tol, int reord);
+RcppExport SEXP _multilevLCA_LCA_fast_poly_includeall(SEXP mYSEXP, SEXP mDesignSEXP, SEXP ivFreqSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP reord_userSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -24,10 +24,11 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::mat >::type mU(mUSEXP);
     Rcpp::traits::input_parameter< arma::ivec >::type ivItemcat(ivItemcatSEXP);
     Rcpp::traits::input_parameter< arma::uvec >::type first_poly(first_polySEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user(reord_userSEXP);
     Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(LCA_fast_poly_includeall(mY, mDesign, ivFreq, iK, mU, ivItemcat, first_poly, maxIter, tol, reord));
+    rcpp_result_gen = Rcpp::wrap(LCA_fast_poly_includeall(mY, mDesign, ivFreq, iK, mU, ivItemcat, first_poly, reord_user, maxIter, tol, reord));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -77,8 +78,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // LCA_fast_poly
-List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_LCA_fast_poly(SEXP mYSEXP, SEXP ivFreqSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
+List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user, int maxIter, double tol, int reord);
+RcppExport SEXP _multilevLCA_LCA_fast_poly(SEXP mYSEXP, SEXP ivFreqSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP reord_userSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -88,10 +89,11 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::mat >::type mU(mUSEXP);
     Rcpp::traits::input_parameter< arma::ivec >::type ivItemcat(ivItemcatSEXP);
     Rcpp::traits::input_parameter< arma::uvec >::type first_poly(first_polySEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user(reord_userSEXP);
     Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(LCA_fast_poly(mY, ivFreq, iK, mU, ivItemcat, first_poly, maxIter, tol, reord));
+    rcpp_result_gen = Rcpp::wrap(LCA_fast_poly(mY, ivFreq, iK, mU, ivItemcat, first_poly, reord_user, maxIter, tol, reord));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -143,24 +145,25 @@ BEGIN_RCPP
 END_RCPP
 }
 // LCA
-List LCA(arma::mat mY, int iK, arma::mat mU, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_LCA(SEXP mYSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
+List LCA(arma::mat mY, int iK, arma::mat mU, arma::vec reord_user, int maxIter, double tol, int reord);
+RcppExport SEXP _multilevLCA_LCA(SEXP mYSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP reord_userSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::mat >::type mY(mYSEXP);
     Rcpp::traits::input_parameter< int >::type iK(iKSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type mU(mUSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user(reord_userSEXP);
     Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(LCA(mY, iK, mU, maxIter, tol, reord));
+    rcpp_result_gen = Rcpp::wrap(LCA(mY, iK, mU, reord_user, maxIter, tol, reord));
     return rcpp_result_gen;
 END_RCPP
 }
 // LCA_fast
-List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_LCA_fast(SEXP mYSEXP, SEXP ivFreqSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
+List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::vec reord_user, int maxIter, double tol, int reord);
+RcppExport SEXP _multilevLCA_LCA_fast(SEXP mYSEXP, SEXP ivFreqSEXP, SEXP iKSEXP, SEXP mUSEXP, SEXP reord_userSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -168,10 +171,11 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::ivec >::type ivFreq(ivFreqSEXP);
     Rcpp::traits::input_parameter< int >::type iK(iKSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type mU(mUSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user(reord_userSEXP);
     Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(LCA_fast(mY, ivFreq, iK, mU, maxIter, tol, reord));
+    rcpp_result_gen = Rcpp::wrap(LCA_fast(mY, ivFreq, iK, mU, reord_user, maxIter, tol, reord));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -517,8 +521,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // MLTLCA_poly_includeall
-List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_MLTLCA_poly_includeall(SEXP mYSEXP, SEXP mDesignSEXP, SEXP vNjSEXP, SEXP vOmegaSEXP, SEXP mPiSEXP, SEXP mPhiSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
+List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user, arma::vec reord_user_high, int maxIter, double tol, int reord);
+RcppExport SEXP _multilevLCA_MLTLCA_poly_includeall(SEXP mYSEXP, SEXP mDesignSEXP, SEXP vNjSEXP, SEXP vOmegaSEXP, SEXP mPiSEXP, SEXP mPhiSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP reord_userSEXP, SEXP reord_user_highSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -530,10 +534,12 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::mat >::type mPhi(mPhiSEXP);
     Rcpp::traits::input_parameter< arma::ivec >::type ivItemcat(ivItemcatSEXP);
     Rcpp::traits::input_parameter< arma::uvec >::type first_poly(first_polySEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user(reord_userSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user_high(reord_user_highSEXP);
     Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(MLTLCA_poly_includeall(mY, mDesign, vNj, vOmega, mPi, mPhi, ivItemcat, first_poly, maxIter, tol, reord));
+    rcpp_result_gen = Rcpp::wrap(MLTLCA_poly_includeall(mY, mDesign, vNj, vOmega, mPi, mPhi, ivItemcat, first_poly, reord_user, reord_user_high, maxIter, tol, reord));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -587,8 +593,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // MLTLCA_poly
-List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_MLTLCA_poly(SEXP mYSEXP, SEXP vNjSEXP, SEXP vOmegaSEXP, SEXP mPiSEXP, SEXP mPhiSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
+List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user, arma::vec reord_user_high, int maxIter, double tol, int reord);
+RcppExport SEXP _multilevLCA_MLTLCA_poly(SEXP mYSEXP, SEXP vNjSEXP, SEXP vOmegaSEXP, SEXP mPiSEXP, SEXP mPhiSEXP, SEXP ivItemcatSEXP, SEXP first_polySEXP, SEXP reord_userSEXP, SEXP reord_user_highSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -599,10 +605,12 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::mat >::type mPhi(mPhiSEXP);
     Rcpp::traits::input_parameter< arma::ivec >::type ivItemcat(ivItemcatSEXP);
     Rcpp::traits::input_parameter< arma::uvec >::type first_poly(first_polySEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user(reord_userSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user_high(reord_user_highSEXP);
     Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(MLTLCA_poly(mY, vNj, vOmega, mPi, mPhi, ivItemcat, first_poly, maxIter, tol, reord));
+    rcpp_result_gen = Rcpp::wrap(MLTLCA_poly(mY, vNj, vOmega, mPi, mPhi, ivItemcat, first_poly, reord_user, reord_user_high, maxIter, tol, reord));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -652,8 +660,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // MLTLCA
-List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, int maxIter, double tol, int reord);
-RcppExport SEXP _multilevLCA_MLTLCA(SEXP mYSEXP, SEXP vNjSEXP, SEXP vOmegaSEXP, SEXP mPiSEXP, SEXP mPhiSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
+List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::vec reord_user, arma::vec reord_user_high, int maxIter, double tol, int reord);
+RcppExport SEXP _multilevLCA_MLTLCA(SEXP mYSEXP, SEXP vNjSEXP, SEXP vOmegaSEXP, SEXP mPiSEXP, SEXP mPhiSEXP, SEXP reord_userSEXP, SEXP reord_user_highSEXP, SEXP maxIterSEXP, SEXP tolSEXP, SEXP reordSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -662,10 +670,12 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type vOmega(vOmegaSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type mPi(mPiSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type mPhi(mPhiSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user(reord_userSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type reord_user_high(reord_user_highSEXP);
     Rcpp::traits::input_parameter< int >::type maxIter(maxIterSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type reord(reordSEXP);
-    rcpp_result_gen = Rcpp::wrap(MLTLCA(mY, vNj, vOmega, mPi, mPhi, maxIter, tol, reord));
+    rcpp_result_gen = Rcpp::wrap(MLTLCA(mY, vNj, vOmega, mPi, mPhi, reord_user, reord_user_high, maxIter, tol, reord));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -733,15 +743,15 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_multilevLCA_LCA_fast_poly_includeall", (DL_FUNC) &_multilevLCA_LCA_fast_poly_includeall, 10},
+    {"_multilevLCA_LCA_fast_poly_includeall", (DL_FUNC) &_multilevLCA_LCA_fast_poly_includeall, 11},
     {"_multilevLCA_LCAcov_poly_includeall", (DL_FUNC) &_multilevLCA_LCAcov_poly_includeall, 13},
     {"_multilevLCA_LCAcov_poly", (DL_FUNC) &_multilevLCA_LCAcov_poly, 12},
-    {"_multilevLCA_LCA_fast_poly", (DL_FUNC) &_multilevLCA_LCA_fast_poly, 9},
+    {"_multilevLCA_LCA_fast_poly", (DL_FUNC) &_multilevLCA_LCA_fast_poly, 10},
     {"_multilevLCA_LCA_LLK", (DL_FUNC) &_multilevLCA_LCA_LLK, 3},
     {"_multilevLCA_LCA_LLK_j", (DL_FUNC) &_multilevLCA_LCA_LLK_j, 3},
     {"_multilevLCA_LCAcov", (DL_FUNC) &_multilevLCA_LCAcov, 11},
-    {"_multilevLCA_LCA", (DL_FUNC) &_multilevLCA_LCA, 6},
-    {"_multilevLCA_LCA_fast", (DL_FUNC) &_multilevLCA_LCA_fast, 7},
+    {"_multilevLCA_LCA", (DL_FUNC) &_multilevLCA_LCA, 7},
+    {"_multilevLCA_LCA_fast", (DL_FUNC) &_multilevLCA_LCA_fast, 8},
     {"_multilevLCA_MixtDensityScale", (DL_FUNC) &_multilevLCA_MixtDensityScale, 3},
     {"_multilevLCA_rando_index", (DL_FUNC) &_multilevLCA_rando_index, 1},
     {"_multilevLCA_zero_bound", (DL_FUNC) &_multilevLCA_zero_bound, 2},
@@ -761,13 +771,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"_multilevLCA_MLTLCA_covWfixed_poly", (DL_FUNC) &_multilevLCA_MLTLCA_covWfixed_poly, 14},
     {"_multilevLCA_MLTLCA_covlowhigh_poly_includeall", (DL_FUNC) &_multilevLCA_MLTLCA_covlowhigh_poly_includeall, 16},
     {"_multilevLCA_MLTLCA_cov_poly_includeall", (DL_FUNC) &_multilevLCA_MLTLCA_cov_poly_includeall, 15},
-    {"_multilevLCA_MLTLCA_poly_includeall", (DL_FUNC) &_multilevLCA_MLTLCA_poly_includeall, 11},
+    {"_multilevLCA_MLTLCA_poly_includeall", (DL_FUNC) &_multilevLCA_MLTLCA_poly_includeall, 13},
     {"_multilevLCA_MLTLCA_covlowhigh_poly", (DL_FUNC) &_multilevLCA_MLTLCA_covlowhigh_poly, 15},
     {"_multilevLCA_MLTLCA_cov_poly", (DL_FUNC) &_multilevLCA_MLTLCA_cov_poly, 14},
-    {"_multilevLCA_MLTLCA_poly", (DL_FUNC) &_multilevLCA_MLTLCA_poly, 10},
+    {"_multilevLCA_MLTLCA_poly", (DL_FUNC) &_multilevLCA_MLTLCA_poly, 12},
     {"_multilevLCA_MLTLCA_covlowhigh", (DL_FUNC) &_multilevLCA_MLTLCA_covlowhigh, 13},
     {"_multilevLCA_MLTLCA_cov", (DL_FUNC) &_multilevLCA_MLTLCA_cov, 12},
-    {"_multilevLCA_MLTLCA", (DL_FUNC) &_multilevLCA_MLTLCA, 8},
+    {"_multilevLCA_MLTLCA", (DL_FUNC) &_multilevLCA_MLTLCA, 10},
     {"_multilevLCA_MLTLCA_cov_LLK", (DL_FUNC) &_multilevLCA_MLTLCA_cov_LLK, 6},
     {"_multilevLCA_MLTLCA_cov_LLK_j", (DL_FUNC) &_multilevLCA_MLTLCA_cov_LLK_j, 6},
     {"_multilevLCA_MLTLCA_LLK", (DL_FUNC) &_multilevLCA_MLTLCA_LLK, 5},

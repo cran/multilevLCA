@@ -7,7 +7,7 @@ using namespace arma;
 using namespace Rcpp;
 
 //[[Rcpp::export]]
-List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly,  int maxIter = 1e3, double tol = 1e-8, int reord = 0){
+List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user,  int maxIter = 1e3, double tol = 1e-8, int reord = 0){
   // mY is equal to the number of observed response patterns x iH
   // ivItempos tells the number of categories for each item 
   //
@@ -47,20 +47,6 @@ List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq
       for(k = 0; k < iK; k++){
         ifooDcat = 0;
         for(v = 0; v< iV;v++){
-          // if(mDesign(n,v)==1){
-          //   if(ivItemcat(v)==2){
-          //     mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-          //     ifooDcat += 1;
-          //   }else{
-          //     for(p = 0; p < ivItemcat(v); p++){
-          //       if(mY(n,ifooDcat) > 0.0){
-          //         mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-          //       }
-          //       ifooDcat += 1;
-          //     }
-          //   }
-          //   vHdY(k) += mdY(n,k,v);
-          // }
           if(ivItemcat(v)==2){
             if(mDesign(n,ifooDcat)==1){
               mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
@@ -92,9 +78,25 @@ List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq
   }
   LLKSeries = LLKSeries.subvec(0, iter - 1);
   if(reord == 1){
-    // arma::vec vPhisum = sum(mPhi).t();
     arma::vec vPhisum = sum(mPhi.rows(first_poly)).t();
     arma::uvec order = sort_index(vPhisum,"descending");
+    //
+    int ireord_check = 0;
+    for(k=0; k< iK; k++){
+      if(reord_user(k) != k){
+        ireord_check = 1;
+      }
+    }
+    if(ireord_check == 1){
+      arma::uvec order_foo = order;
+      int ifoo_reord_user;
+      for(k=0; k< iK; k++){
+        ifoo_reord_user = reord_user(k);
+        order_foo(k) = order(ifoo_reord_user);
+      }
+      order = order_foo;
+    }
+    //
     int ifoo = 0;
     arma::mat mPhi_sorted = mPhi;
     arma::vec pg_sorted = pg;
@@ -289,18 +291,6 @@ List LCAcov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, int i
       for(k = 0; k < iK; k++){
         ifooDcat = 0;
         for(v = 0; v< iV;v++){
-          // if(ivItemcat(v)==2){
-          //   mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-          //   ifooDcat += 1;
-          // }else{
-          //   for(p = 0; p < ivItemcat(v); p++){
-          //     if(mY(n,ifooDcat) > 0.0){
-          //       mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-          //     }
-          //     ifooDcat += 1;
-          //   }
-          // }
-          // mLogDensY(n,k) += mdY(n,k,v);
           if(ivItemcat(v)==2){
             if(mDesign(n,ifooDcat)==1){
               mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
@@ -336,18 +326,6 @@ List LCAcov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, int i
         for(k = 0; k < iK; k++){
           ifooDcat = 0;
           for(v = 0; v< iV;v++){
-            // if(ivItemcat(v)==2){
-            //   mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-            //   ifooDcat += 1;
-            // }else{
-            //   for(p = 0; p < ivItemcat(v); p++){
-            //     if(mY(n,ifooDcat) > 0.0){
-            //       mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
-            //     }
-            //     ifooDcat += 1;
-            //   }
-            // }
-            // mLogDensY(n,k) += mdY(n,k,v);
             if(ivItemcat(v)==2){
               if(mDesign(n,ifooDcat)==1){
                 mdY(n,k,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,k), isize);
@@ -400,36 +378,6 @@ List LCAcov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, int i
   LLKSeries = LLKSeries.subvec(0, iter - 1);
   arma::ivec ivItemcat_red = ivItemcat -1;
   int nfreepar_res = sum(ivItemcat_red);
-  // 
-  // arma::mat gamma = zeros(nfreepar_res,iK);
-  // int iRoll = 0;
-  // int iItemfoo = 0;
-  // for(k = 0; k < iK; k++){
-  //   iRoll = 0;
-  //   iItemfoo = 0;
-  //   for(v  = 0; v < iV; v++){
-  //     if(v>0){
-  //       if(ivItemcat(v)>2){
-  //         iItemfoo = sum(ivItemcat.subvec(0,v-1));
-  //         gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
-  //         iItemfoo += ivItemcat(v);
-  //       }else{
-  //         gamma(iRoll,k) = log(mPhi(iItemfoo,k)/(1.0 - mPhi(iItemfoo,k)));
-  //         iItemfoo += ivItemcat(v)-1;
-  //       }
-  //     }else{
-  //       if(ivItemcat(v)>2){
-  //         gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
-  //         iItemfoo += ivItemcat(v);
-  //       }else{
-  //         gamma(iRoll,k) = log(mPhi(0,k)/(1.0 - mPhi(0,k)));
-  //         iItemfoo += ivItemcat(v)-1;
-  //       }
-  //     }
-  //     iRoll += (ivItemcat(v)-1);  
-  //   }
-  // }
-  // iItemfoo = 0;
   
   arma::mat gamma = zeros(nfreepar_res,iK);
   int iRoll = 0;
@@ -600,10 +548,6 @@ List LCAcov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, int i
   return EMout;
 }  
 
-
-
-
-
 // [[Rcpp::export]]
 List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat mBeta, arma::mat mStep1Var, arma::ivec ivItemcat, int fixed = 0, int maxIter = 1e3, double tol = 1e-8, double NRtol = 1e-6, int NRmaxit = 100){
   // mU must be n x iK
@@ -721,37 +665,6 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   LLKSeries = LLKSeries.subvec(0, iter - 1);
   arma::ivec ivItemcat_red = ivItemcat -1;
   int nfreepar_res = sum(ivItemcat_red);
-  // 
-  // arma::mat gamma = zeros(nfreepar_res,iK);
-  // int iRoll = 0;
-  // int iItemfoo = 0;
-  // for(k = 0; k < iK; k++){
-  //   iRoll = 0;
-  //   iItemfoo = 0;
-  //   for(v  = 0; v < iV; v++){
-  //     if(v>0){
-  //       if(ivItemcat(v)>2){
-  //         iItemfoo = sum(ivItemcat.subvec(0,v-1));
-  //         gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + ivItemcat(v)-1)/mPhi(iItemfoo,k));
-  //         iItemfoo += ivItemcat(v);
-  //       }else{
-  //         gamma(iRoll,k) = log(mPhi(iItemfoo,k)/(1.0 - mPhi(iItemfoo,k)));
-  //         iItemfoo += ivItemcat(v)-1;
-  //       }
-  //     }else{
-  //       if(ivItemcat(v)>2){
-  //         gamma.col(k).subvec(iRoll,iRoll + (ivItemcat(v)-2)) = log(mPhi.col(k).subvec(1,ivItemcat(v)-1)/mPhi(0,k));
-  //         iItemfoo += ivItemcat(v);
-  //       }else{
-  //         gamma(iRoll,k) = log(mPhi(0,k)/(1.0 - mPhi(0,k)));
-  //         iItemfoo += ivItemcat(v)-1;
-  //       }
-  //     }
-  //     iRoll += (ivItemcat(v)-1);  
-  //   }
-  // }
-  // iItemfoo = 0;
-  // 
   arma::mat gamma = zeros(nfreepar_res,iK);
   int iRoll = 0;
   int iItemfoo = 0;
@@ -923,7 +836,7 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
 }  
 
 //[[Rcpp::export]]
-List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly,  int maxIter = 1e3, double tol = 1e-8, int reord = 0){
+List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user,  int maxIter = 1e3, double tol = 1e-8, int reord = 0){
   // mY is equal to the number of observed response patterns x iH
   // ivItempos tells the number of categories for each item 
   //
@@ -990,9 +903,25 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
   }
   LLKSeries = LLKSeries.subvec(0, iter - 1);
   if(reord == 1){
-    // arma::vec vPhisum = sum(mPhi).t();
     arma::vec vPhisum = sum(mPhi.rows(first_poly)).t();
     arma::uvec order = sort_index(vPhisum,"descending");
+    //
+    int ireord_check = 0;
+    for(k=0; k< iK; k++){
+      if(reord_user(k) != k){
+        ireord_check = 1;
+      }
+    }
+    if(ireord_check == 1){
+      arma::uvec order_foo = order;
+      int ifoo_reord_user;
+      for(k=0; k< iK; k++){
+        ifoo_reord_user = reord_user(k);
+        order_foo(k) = order(ifoo_reord_user);
+      }
+      order = order_foo;
+    }
+    //
     int ifoo = 0;
     arma::mat mPhi_sorted = mPhi;
     arma::vec pg_sorted = pg;
@@ -1423,7 +1352,7 @@ List LCAcov(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat mBeta,
 }
 
 //[[Rcpp::export]]
-List LCA(arma::mat mY, int iK, arma::mat mU, int maxIter = 1e3, double tol = 1e-8, int reord = 0){
+List LCA(arma::mat mY, int iK, arma::mat mU, arma::vec reord_user, int maxIter = 1e3, double tol = 1e-8, int reord = 0){
   // mU must be n*Ti x iK
   //
   int iN    = mY.n_rows;
@@ -1478,6 +1407,23 @@ List LCA(arma::mat mY, int iK, arma::mat mU, int maxIter = 1e3, double tol = 1e-
   if(reord == 1){
     arma::vec vPhisum = sum(mPhi).t();
     arma::uvec order = sort_index(vPhisum,"descending");
+    //
+    int ireord_check = 0;
+    for(k=0; k< iK; k++){
+      if(reord_user(k) != k){
+        ireord_check = 1;
+      }
+    }
+    if(ireord_check == 1){
+      arma::uvec order_foo = order;
+      int ifoo_reord_user;
+      for(k=0; k< iK; k++){
+        ifoo_reord_user = reord_user(k);
+        order_foo(k) = order(ifoo_reord_user);
+      }
+      order = order_foo;
+    }
+    //
     int ifoo = 0;
     arma::mat mPhi_sorted = mPhi;
     arma::vec pg_sorted = pg;
@@ -1552,7 +1498,7 @@ List LCA(arma::mat mY, int iK, arma::mat mU, int maxIter = 1e3, double tol = 1e-
 }
 
 //[[Rcpp::export]]
-List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, int maxIter = 1e3, double tol = 1e-8, int reord = 0){
+List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::vec reord_user, int maxIter = 1e3, double tol = 1e-8, int reord = 0){
   // mY is equal to the number of observed response patterns x iH
   //
   int iNtot    = accu(ivFreq);
@@ -1608,6 +1554,23 @@ List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, int maxIter
   if(reord == 1){
     arma::vec vPhisum = sum(mPhi).t();
     arma::uvec order = sort_index(vPhisum,"descending");
+    //
+    int ireord_check = 0;
+    for(k=0; k< iK; k++){
+      if(reord_user(k) != k){
+        ireord_check = 1;
+      }
+    }
+    if(ireord_check == 1){
+      arma::uvec order_foo = order;
+      int ifoo_reord_user;
+      for(k=0; k< iK; k++){
+        ifoo_reord_user = reord_user(k);
+        order_foo(k) = order(ifoo_reord_user);
+      }
+      order = order_foo;
+    }
+    //
     int ifoo = 0;
     arma::mat mPhi_sorted = mPhi;
     arma::vec pg_sorted = pg;

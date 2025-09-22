@@ -58,7 +58,7 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
       mGamma_fixslope(m,t) = cGamma_start(t,0,m);
     }
     for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1);
+      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   // 
@@ -132,20 +132,6 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
       for(t = 0; t < iT; t++){
         ifooDcat = 0;
         for(v = 0; v< iV;v++){
-          // if(mDesign(n,v)==1){
-          //   if(ivItemcat(v)==2){
-          //     cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-          //     ifooDcat += 1;
-          //   }else{
-          //     for(p = 0; p < ivItemcat(v); p++){
-          //       if(mY(n,ifooDcat) > 0.0){
-          //         cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-          //       }
-          //       ifooDcat += 1;
-          //     }
-          //   }
-          //   mLogdKY(n,t) +=cLogdY(n,t,v);
-          // }
           if(ivItemcat(v)==2){
             if(mDesign(n,ifooDcat)==1){
               cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
@@ -179,20 +165,6 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
         for(t = 0; t < iT; t++){
           ifooDcat = 0;
           for(v = 0; v< iV;v++){
-            // if(mDesign(n,v)==1){
-            //   if(ivItemcat(v)==2){
-            //     cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-            //     ifooDcat += 1;
-            //   }else{
-            //     for(p = 0; p < ivItemcat(v); p++){
-            //       if(mY(n,ifooDcat) > 0.0){
-            //         cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-            //       }
-            //       ifooDcat += 1;
-            //     }
-            //   }
-            //   mLogdKY(n,t) +=cLogdY(n,t,v);
-            // }
             if(ivItemcat(v)==2){
               if(mDesign(n,ifooDcat)==1){
                 cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
@@ -582,7 +554,7 @@ List MLTLCA_covWfixedlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arm
       mGamma_fixslope(m,t) = cGamma_start(t,0,m);
     }
     for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1);
+      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   // 
@@ -1068,7 +1040,7 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
       mGamma_fixslope(m,t) = cGamma_start(t,0,m);
     }
     for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1);
+      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   //
@@ -1540,7 +1512,7 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
       mGamma_fixslope(m,t) = cGamma_start(t,0,m);
     }
     for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1);
+      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   //
@@ -2060,20 +2032,6 @@ List MLTLCA_covlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ma
       for(t = 0; t < iT; t++){
         ifooDcat = 0;
         for(v = 0; v< iV;v++){
-          // if(mDesign(n,v)==1){
-          //   if(ivItemcat(v)==2){
-          //     cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-          //     ifooDcat += 1;
-          //   }else{
-          //     for(p = 0; p < ivItemcat(v); p++){
-          //       if(mY(n,ifooDcat) > 0.0){
-          //         cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-          //       }
-          //       ifooDcat += 1;
-          //     }
-          //   }
-          //   mLogdKY(n,t) +=cLogdY(n,t,v);
-          // }
           if(ivItemcat(v)==2){
             if(mDesign(n,ifooDcat)==1){
               cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
@@ -2107,20 +2065,6 @@ List MLTLCA_covlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ma
         for(t = 0; t < iT; t++){
           ifooDcat = 0;
           for(v = 0; v< iV;v++){
-            // if(mDesign(n,v)==1){
-            //   if(ivItemcat(v)==2){
-            //     cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-            //     ifooDcat += 1;
-            //   }else{
-            //     for(p = 0; p < ivItemcat(v); p++){
-            //       if(mY(n,ifooDcat) > 0.0){
-            //         cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-            //       }
-            //       ifooDcat += 1;
-            //     }
-            //   }
-            //   mLogdKY(n,t) +=cLogdY(n,t,v);
-            // }
             if(ivItemcat(v)==2){
               if(mDesign(n,ifooDcat)==1){
                 cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
@@ -2578,20 +2522,6 @@ List MLTLCA_cov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, a
         for(t = 0; t < iT; t++){
           ifooDcat = 0;
           for(v = 0; v< iV;v++){
-            // if(mDesign(n,v)==1){
-            //   if(ivItemcat(v)==2){
-            //     cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-            //     ifooDcat += 1;
-            //   }else{
-            //     for(p = 0; p < ivItemcat(v); p++){
-            //       if(mY(n,ifooDcat) > 0.0){
-            //         cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-            //       }
-            //       ifooDcat += 1;
-            //     }
-            //   }
-            //   mLogdKY(n,t) +=cLogdY(n,t,v);
-            // }
             if(ivItemcat(v)==2){
               if(mDesign(n,ifooDcat)==1){
                 cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
@@ -2914,7 +2844,7 @@ List MLTLCA_cov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, a
 }
 
 // [[Rcpp::export]]
-List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, int maxIter = 1e3, double tol = 1e-8, int reord = 1){
+List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user, arma::vec reord_user_high, int maxIter = 1e3, double tol = 1e-8, int reord = 1){
   // mY is iJ*sum(nj) x K
   // iN = iJ*sum(nj)
   // iK is the number of items
@@ -2973,20 +2903,6 @@ List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma
       for(t = 0; t < iT; t++){
         ifooDcat = 0;
         for(v = 0; v< iV;v++){
-          // if(mDesign(n,v)==1){
-          //   if(ivItemcat(v)==2){
-          //     cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-          //     ifooDcat += 1;
-          //   }else{
-          //     for(p = 0; p < ivItemcat(v); p++){
-          //       if(mY(n,ifooDcat) > 0.0){
-          //         cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
-          //       }
-          //       ifooDcat += 1;
-          //     }
-          //   }
-          //   mLogdKY(n,t) +=cLogdY(n,t,v);
-          // }
           if(ivItemcat(v)==2){
             if(mDesign(n,ifooDcat)==1){
               cLogdY(n,t,v) = Rf_dbinom(mY(n,ifooDcat), size, mPhi(ifooDcat,t), isize);
@@ -3089,56 +3005,6 @@ List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma
     
   }
   LLKSeries = LLKSeries.subvec(0, iter - 1);
-  // if(reord == 1){
-  //   // arma::vec vPhisum = sum(mPhi).t();
-  //   arma::vec vPhisum = sum(mPhi.rows(first_poly)).t();
-  //   arma::uvec low_order = sort_index(vPhisum,"descending");
-  //   arma::uvec high_order = sort_index(vOmega,"descending");
-  //   int ifoo = 0;
-  //   int ifoo_high = 0;
-  //   arma::vec vOmega_sorted = vOmega;
-  //   arma::mat mPhi_sorted = mPhi;
-  //   arma::mat mPi_sorted = mPi;
-  //   arma::mat mPW_sorted = mPW;
-  //   arma::mat mPW_N_sorted = mPW_N;
-  //   arma::cube cPX_sorted = cPX;
-  //   arma::cube cPMX_sorted = cPMX;
-  //   arma::cube clogPX_sorted = cPX;
-  //   arma::cube clogPMX_sorted = cPMX;
-  //   arma::mat mSumPX_sorted = mSumPX;
-  //   arma::mat mPMsumX_sorted = mPMsumX;
-  //   arma::cube cLogdY_sorted = cLogdY;
-  //   arma::mat mLogdKY_sorted = mLogdKY;
-  //   for(t=0; t< iT; t++){
-  //     ifoo               = low_order(t);
-  //     mPhi_sorted.col(t) = mPhi.col(ifoo);
-  //     mPi_sorted.row(t)  = mPi.row(ifoo);
-  //     cPX_sorted.col(t)  = cPX_sorted.col(ifoo);
-  //     clogPX_sorted.col(t)  = clogPX_sorted.col(ifoo);
-  //     cPMX_sorted.col(t)  = cPMX_sorted.col(ifoo);
-  //     clogPMX_sorted.col(t)  = clogPMX_sorted.col(ifoo);
-  //     mPMsumX_sorted.col(t)  = mPMsumX_sorted.col(ifoo);
-  //     mLogdKY_sorted.col(t)  = mLogdKY_sorted.col(ifoo);
-  //   }
-  //   for(m = 0; m < iM; m++){
-  //     ifoo_high = high_order(m);
-  //     mPi_sorted.col(m)  = mPi.col(ifoo_high);
-  //     cPX_sorted.slice(m)  = cPX_sorted.slice(ifoo_high);
-  //     clogPX_sorted.slice(m)  = clogPX_sorted.slice(ifoo_high);
-  //     cPMX_sorted.slice(m)  = cPMX_sorted.slice(ifoo_high);
-  //     clogPMX_sorted.slice(m)  = clogPMX_sorted.slice(ifoo_high);
-  //     mSumPX_sorted.col(m)  = mSumPX_sorted.col(ifoo_high);
-  //   }
-  //   mPhi = mPhi_sorted;
-  //   mPi = mPi_sorted;
-  //   cPX = cPX_sorted;
-  //   clogPX = clogPX_sorted;
-  //   cPMX = cPMX_sorted;
-  //   clogPMX = clogPMX_sorted;
-  //   mPMsumX = mPMsumX_sorted;
-  //   mLogdKY = mLogdKY_sorted;
-  //   mSumPX = mSumPX_sorted;
-  // }
   if(reord == 1){
     arma::cube cPhi_foo = zeros(iK,iT,iM);
     // int fp  = first_poly.n_elem;
@@ -3161,6 +3027,48 @@ List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma
     arma::vec vPhisum = sum(mPhi.rows(first_poly)).t();
     arma::uvec low_order = sort_index(vPhisum,"descending");
     arma::uvec high_order = sort_index(vOmega,"descending");
+    int ireord_check = 0;
+    for(t = 0; t < iT; t++){
+      if(reord_user(t) != t){
+        ireord_check = 1;
+      }
+    }
+    if(ireord_check == 1){
+      arma::umat mLow_order_foo = mLow_order;
+      arma::uvec low_order_foo = low_order;
+      int ifoo_reord_user;
+      for(t = 0; t < iT; t++){
+        ifoo_reord_user = reord_user(t);
+        low_order_foo(t) = low_order(ifoo_reord_user);
+        for(m = 0; m < iM; m++){
+          mLow_order_foo(t,m) = mLow_order(ifoo_reord_user,m);
+        }
+      }
+      low_order = low_order_foo;
+      mLow_order = mLow_order_foo;
+    }
+    //
+    int ireord_check_high = 0;
+    for(m = 0; m < iM; m++){
+      if(reord_user_high(m) != m){
+        ireord_check_high = 1;
+      }
+    }
+    if(ireord_check_high == 1){
+      arma::umat mLow_order_foo = mLow_order;
+      arma::uvec high_order_foo = high_order;
+      int ifoo_reord_user_high;
+      for(m = 0; m < iM; m++){
+        ifoo_reord_user_high = reord_user_high(m);
+        high_order_foo(m) = high_order(ifoo_reord_user_high);
+        for(t = 0; t < iT; t++){
+          mLow_order_foo(t,m) = mLow_order(t,ifoo_reord_user_high);
+        }
+      }
+      high_order = high_order_foo;
+      mLow_order = mLow_order_foo;
+    }
+    //
     int ifoo = 0;
     int ifoo_high = 0;
     arma::vec vOmega_sorted = vOmega;
@@ -3187,12 +3095,12 @@ List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma
         cPX_sorted.slice(m).col(t)  = cPX_sorted.slice(m).col(ifoo);
         clogPX_sorted.slice(m).col(t)  = clogPX_sorted.slice(m).col(ifoo);
         cPMX_sorted.slice(m).col(t)  = cPMX_sorted.slice(m).col(ifoo);
-        cPMX_sorted.slice(m).col(t)  = cPMX_sorted.slice(m).col(ifoo);
         clogPMX_sorted.slice(m).col(t)  = clogPMX_sorted.slice(m).col(ifoo);
       }
     }
     for(m = 0; m < iM; m++){
       ifoo_high = high_order(m);
+      vOmega_sorted(m) = vOmega(ifoo_high);
       mPi_sorted.col(m)  = mPi.col(ifoo_high);
       cPX_sorted.slice(m)  = cPX_sorted.slice(ifoo_high);
       clogPX_sorted.slice(m)  = clogPX_sorted.slice(ifoo_high);
@@ -3200,6 +3108,7 @@ List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma
       clogPMX_sorted.slice(m)  = clogPMX_sorted.slice(ifoo_high);
       mSumPX_sorted.col(m)  = mSumPX_sorted.col(ifoo_high);
     }
+    vOmega = vOmega_sorted;
     mPhi = mPhi_sorted;
     mPi = mPi_sorted;
     cPX = cPX_sorted;
@@ -4271,7 +4180,7 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
 }
 
 // [[Rcpp::export]]
-List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, int maxIter = 1e3, double tol = 1e-8, int reord = 1){
+List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::ivec ivItemcat, arma::uvec first_poly, arma::vec reord_user, arma::vec reord_user_high, int maxIter = 1e3, double tol = 1e-8, int reord = 1){
   // mY is iJ*sum(nj) x K
   // iN = iJ*sum(nj)
   // iK is the number of items
@@ -4426,56 +4335,6 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
     
   }
   LLKSeries = LLKSeries.subvec(0, iter - 1);
-  // if(reord == 1){
-  //   // arma::vec vPhisum = sum(mPhi).t();
-  //   arma::vec vPhisum = sum(mPhi.rows(first_poly)).t();
-  //   arma::uvec low_order = sort_index(vPhisum,"descending");
-  //   arma::uvec high_order = sort_index(vOmega,"descending");
-  //   int ifoo = 0;
-  //   int ifoo_high = 0;
-  //   arma::vec vOmega_sorted = vOmega;
-  //   arma::mat mPhi_sorted = mPhi;
-  //   arma::mat mPi_sorted = mPi;
-  //   arma::mat mPW_sorted = mPW;
-  //   arma::mat mPW_N_sorted = mPW_N;
-  //   arma::cube cPX_sorted = cPX;
-  //   arma::cube cPMX_sorted = cPMX;
-  //   arma::cube clogPX_sorted = cPX;
-  //   arma::cube clogPMX_sorted = cPMX;
-  //   arma::mat mSumPX_sorted = mSumPX;
-  //   arma::mat mPMsumX_sorted = mPMsumX;
-  //   arma::cube cLogdY_sorted = cLogdY;
-  //   arma::mat mLogdKY_sorted = mLogdKY;
-  //   for(t=0; t< iT; t++){
-  //     ifoo               = low_order(t);
-  //     mPhi_sorted.col(t) = mPhi.col(ifoo);
-  //     mPi_sorted.row(t)  = mPi.row(ifoo);
-  //     cPX_sorted.col(t)  = cPX_sorted.col(ifoo);
-  //     clogPX_sorted.col(t)  = clogPX_sorted.col(ifoo);
-  //     cPMX_sorted.col(t)  = cPMX_sorted.col(ifoo);
-  //     clogPMX_sorted.col(t)  = clogPMX_sorted.col(ifoo);
-  //     mPMsumX_sorted.col(t)  = mPMsumX_sorted.col(ifoo);
-  //     mLogdKY_sorted.col(t)  = mLogdKY_sorted.col(ifoo);
-  //   }
-  //   for(m = 0; m < iM; m++){
-  //     ifoo_high = high_order(m);
-  //     mPi_sorted.col(m)  = mPi.col(ifoo_high);
-  //     cPX_sorted.slice(m)  = cPX_sorted.slice(ifoo_high);
-  //     clogPX_sorted.slice(m)  = clogPX_sorted.slice(ifoo_high);
-  //     cPMX_sorted.slice(m)  = cPMX_sorted.slice(ifoo_high);
-  //     clogPMX_sorted.slice(m)  = clogPMX_sorted.slice(ifoo_high);
-  //     mSumPX_sorted.col(m)  = mSumPX_sorted.col(ifoo_high);
-  //   }
-  //   mPhi = mPhi_sorted;
-  //   mPi = mPi_sorted;
-  //   cPX = cPX_sorted;
-  //   clogPX = clogPX_sorted;
-  //   cPMX = cPMX_sorted;
-  //   clogPMX = clogPMX_sorted;
-  //   mPMsumX = mPMsumX_sorted;
-  //   mLogdKY = mLogdKY_sorted;
-  //   mSumPX = mSumPX_sorted;
-  // }
   if(reord == 1){
     arma::cube cPhi_foo = zeros(iK,iT,iM);
     // int fp  = first_poly.n_elem;
@@ -4498,6 +4357,48 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
     arma::vec vPhisum = sum(mPhi.rows(first_poly)).t();
     arma::uvec low_order = sort_index(vPhisum,"descending");
     arma::uvec high_order = sort_index(vOmega,"descending");
+    int ireord_check = 0;
+    for(t = 0; t < iT; t++){
+      if(reord_user(t) != t){
+        ireord_check = 1;
+      }
+    }
+    if(ireord_check == 1){
+      arma::umat mLow_order_foo = mLow_order;
+      arma::uvec low_order_foo = low_order;
+      int ifoo_reord_user;
+      for(t = 0; t < iT; t++){
+        ifoo_reord_user = reord_user(t);
+        low_order_foo(t) = low_order(ifoo_reord_user);
+        for(m = 0; m < iM; m++){
+          mLow_order_foo(t,m) = mLow_order(ifoo_reord_user,m);
+        }
+      }
+      low_order = low_order_foo;
+      mLow_order = mLow_order_foo;
+    }
+    //
+    int ireord_check_high = 0;
+    for(m = 0; m < iM; m++){
+      if(reord_user_high(m) != m){
+        ireord_check_high = 1;
+      }
+    }
+    if(ireord_check_high == 1){
+      arma::umat mLow_order_foo = mLow_order;
+      arma::uvec high_order_foo = high_order;
+      int ifoo_reord_user_high;
+      for(m = 0; m < iM; m++){
+        ifoo_reord_user_high = reord_user_high(m);
+        high_order_foo(m) = high_order(ifoo_reord_user_high);
+        for(t = 0; t < iT; t++){
+          mLow_order_foo(t,m) = mLow_order(t,ifoo_reord_user_high);
+        }
+      }
+      high_order = high_order_foo;
+      mLow_order = mLow_order_foo;
+    }
+    //
     int ifoo = 0;
     int ifoo_high = 0;
     arma::vec vOmega_sorted = vOmega;
@@ -4524,12 +4425,12 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
         cPX_sorted.slice(m).col(t)  = cPX_sorted.slice(m).col(ifoo);
         clogPX_sorted.slice(m).col(t)  = clogPX_sorted.slice(m).col(ifoo);
         cPMX_sorted.slice(m).col(t)  = cPMX_sorted.slice(m).col(ifoo);
-        cPMX_sorted.slice(m).col(t)  = cPMX_sorted.slice(m).col(ifoo);
         clogPMX_sorted.slice(m).col(t)  = clogPMX_sorted.slice(m).col(ifoo);
       }
     }
     for(m = 0; m < iM; m++){
       ifoo_high = high_order(m);
+      vOmega_sorted(m) = vOmega(ifoo_high);
       mPi_sorted.col(m)  = mPi.col(ifoo_high);
       cPX_sorted.slice(m)  = cPX_sorted.slice(ifoo_high);
       clogPX_sorted.slice(m)  = clogPX_sorted.slice(ifoo_high);
@@ -4537,6 +4438,7 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
       clogPMX_sorted.slice(m)  = clogPMX_sorted.slice(ifoo_high);
       mSumPX_sorted.col(m)  = mSumPX_sorted.col(ifoo_high);
     }
+    vOmega = vOmega_sorted;
     mPhi = mPhi_sorted;
     mPi = mPi_sorted;
     cPX = cPX_sorted;
@@ -5298,7 +5200,6 @@ List MLTLCA_cov(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_star
     // Update parameters
     
     mPhi      = mPhi_Next;
-    
     cGamma    = cGamma_Next;
     cPi = cPi_foo;
     cLogPi    = log(cPi);
@@ -5424,7 +5325,7 @@ List MLTLCA_cov(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_star
 }
 
 // [[Rcpp::export]]
-List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, int maxIter = 1e3, double tol = 1e-8, int reord = 1){
+List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::mat mPhi, arma::vec reord_user, arma::vec reord_user_high, int maxIter = 1e3, double tol = 1e-8, int reord = 1){
   // mY is iJ*sum(nj) x K
   // iN = iJ*sum(nj)
   // iK is the number of items
@@ -5564,55 +5465,6 @@ List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::
     
   }
   LLKSeries = LLKSeries.subvec(0, iter - 1);
-  // if(reord == 1){
-  //   arma::vec vPhisum = sum(mPhi).t();
-  //   arma::uvec low_order = sort_index(vPhisum,"descending");
-  //   arma::uvec high_order = sort_index(vOmega,"descending");
-  //   int ifoo = 0;
-  //   int ifoo_high = 0;
-  //   arma::vec vOmega_sorted = vOmega;
-  //   arma::mat mPhi_sorted = mPhi;
-  //   arma::mat mPi_sorted = mPi;
-  //   arma::mat mPW_sorted = mPW;
-  //   arma::mat mPW_N_sorted = mPW_N;
-  //   arma::cube cPX_sorted = cPX;
-  //   arma::cube cPMX_sorted = cPMX;
-  //   arma::cube clogPX_sorted = cPX;
-  //   arma::cube clogPMX_sorted = cPMX;
-  //   arma::mat mSumPX_sorted = mSumPX;
-  //   arma::mat mPMsumX_sorted = mPMsumX;
-  //   arma::cube cLogdY_sorted = cLogdY;
-  //   arma::mat mLogdKY_sorted = mLogdKY;
-  //   for(t=0; t< iT; t++){
-  //     ifoo               = low_order(t);
-  //     mPhi_sorted.col(t) = mPhi.col(ifoo);
-  //     mPi_sorted.row(t)  = mPi.row(ifoo);
-  //     cPX_sorted.col(t)  = cPX_sorted.col(ifoo);
-  //     clogPX_sorted.col(t)  = clogPX_sorted.col(ifoo);
-  //     cPMX_sorted.col(t)  = cPMX_sorted.col(ifoo);
-  //     clogPMX_sorted.col(t)  = clogPMX_sorted.col(ifoo);
-  //     mPMsumX_sorted.col(t)  = mPMsumX_sorted.col(ifoo);
-  //     mLogdKY_sorted.col(t)  = mLogdKY_sorted.col(ifoo);
-  //   }
-  //   for(m = 0; m < iM; m++){
-  //     ifoo_high = high_order(m);
-  //     mPi_sorted.col(m)  = mPi.col(ifoo_high);
-  //     cPX_sorted.slice(m)  = cPX_sorted.slice(ifoo_high);
-  //     clogPX_sorted.slice(m)  = clogPX_sorted.slice(ifoo_high);
-  //     cPMX_sorted.slice(m)  = cPMX_sorted.slice(ifoo_high);
-  //     clogPMX_sorted.slice(m)  = clogPMX_sorted.slice(ifoo_high);
-  //     mSumPX_sorted.col(m)  = mSumPX_sorted.col(ifoo_high);
-  //   }
-  //   mPhi = mPhi_sorted;
-  //   mPi = mPi_sorted;
-  //   cPX = cPX_sorted;
-  //   clogPX = clogPX_sorted;
-  //   cPMX = cPMX_sorted;
-  //   clogPMX = clogPMX_sorted;
-  //   mPMsumX = mPMsumX_sorted;
-  //   mLogdKY = mLogdKY_sorted;
-  //   mSumPX = mSumPX_sorted;
-  // }
   if(reord == 1){
     arma::cube cPhi_foo = zeros(iK,iT,iM);
     // int fp  = iK;
@@ -5635,6 +5487,48 @@ List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::
     arma::vec vPhisum = sum(mPhi).t();
     arma::uvec low_order = sort_index(vPhisum,"descending");
     arma::uvec high_order = sort_index(vOmega,"descending");
+    int ireord_check = 0;
+    for(t = 0; t < iT; t++){
+      if(reord_user(t) != t){
+        ireord_check = 1;
+      }
+    }
+    if(ireord_check == 1){
+      arma::umat mLow_order_foo = mLow_order;
+      arma::uvec low_order_foo = low_order;
+      int ifoo_reord_user;
+      for(t = 0; t < iT; t++){
+        ifoo_reord_user = reord_user(t);
+        low_order_foo(t) = low_order(ifoo_reord_user);
+        for(m = 0; m < iM; m++){
+          mLow_order_foo(t,m) = mLow_order(ifoo_reord_user,m);
+        }
+      }
+      low_order = low_order_foo;
+      mLow_order = mLow_order_foo;
+    }
+    //
+    int ireord_check_high = 0;
+    for(m = 0; m < iM; m++){
+      if(reord_user_high(m) != m){
+        ireord_check_high = 1;
+      }
+    }
+    if(ireord_check_high == 1){
+      arma::umat mLow_order_foo = mLow_order;
+      arma::uvec high_order_foo = high_order;
+      int ifoo_reord_user_high;
+      for(m = 0; m < iM; m++){
+        ifoo_reord_user_high = reord_user_high(m);
+        high_order_foo(m) = high_order(ifoo_reord_user_high);
+        for(t = 0; t < iT; t++){
+          mLow_order_foo(t,m) = mLow_order(t,ifoo_reord_user_high);
+        }
+      }
+      high_order = high_order_foo;
+      mLow_order = mLow_order_foo;
+    }
+    //
     int ifoo = 0;
     int ifoo_high = 0;
     arma::vec vOmega_sorted = vOmega;
@@ -5661,12 +5555,12 @@ List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::
         cPX_sorted.slice(m).col(t)  = cPX_sorted.slice(m).col(ifoo);
         clogPX_sorted.slice(m).col(t)  = clogPX_sorted.slice(m).col(ifoo);
         cPMX_sorted.slice(m).col(t)  = cPMX_sorted.slice(m).col(ifoo);
-        cPMX_sorted.slice(m).col(t)  = cPMX_sorted.slice(m).col(ifoo);
         clogPMX_sorted.slice(m).col(t)  = clogPMX_sorted.slice(m).col(ifoo);
       }
     }
     for(m = 0; m < iM; m++){
       ifoo_high = high_order(m);
+      vOmega_sorted(m) = vOmega(ifoo_high);
       mPi_sorted.col(m)  = mPi.col(ifoo_high);
       cPX_sorted.slice(m)  = cPX_sorted.slice(ifoo_high);
       clogPX_sorted.slice(m)  = clogPX_sorted.slice(ifoo_high);
@@ -5674,6 +5568,7 @@ List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::
       clogPMX_sorted.slice(m)  = clogPMX_sorted.slice(ifoo_high);
       mSumPX_sorted.col(m)  = mSumPX_sorted.col(ifoo_high);
     }
+    vOmega = vOmega_sorted;
     mPhi = mPhi_sorted;
     mPi = mPi_sorted;
     cPX = cPX_sorted;

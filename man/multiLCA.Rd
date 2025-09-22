@@ -29,6 +29,8 @@ numFreeCores = 2,
 maxIter = 1e3,
 tol = 1e-8,
 reord = TRUE,
+reord_user = NULL,
+reord_user_high = NULL,
 fixedpars = 1,
 NRmaxit = 100,
 NRtol = 1e-6,
@@ -89,7 +91,13 @@ verbose = TRUE
      Tolerance for EM algorithm. Default: \code{1e-8}.
 }
   \item{reord}{
-     Whether to (re)order classes in decreasing order according to probability of scoring yes on all items. Default: \code{TRUE}.
+     Whether to (re)order lower-level classes in decreasing order according to probability of scoring the first response category on all items, and higher-level classes in decreasing order according to class size. Default: \code{TRUE}.
+}
+  \item{reord_user}{
+     User-specified order of the lower-level classes from 1 to \code{iT}, when \code{reord=TRUE}. Default: \code{NULL}.
+}
+  \item{reord_user_high}{
+     User-specified order of the higher-level classes from 1 to \code{iM}, when \code{reord=TRUE}. Default: \code{NULL}.
 }
   \item{fixedpars}{
      One-step estimator (\code{0}), two-step estimator (\code{1}) or two-stage estimator (\code{2}). Default: \code{1}.
@@ -165,6 +173,7 @@ Single-level model estimation with covariates returns (if \code{extout = FALSE},
   \item{estimator}{Estimation approach for structural model}
   \item{missing_values}{Strategy for handling of eventual missing values}
   \item{sample_size}{Final sample size for model estimation}
+  \item{stru_inference}{Inference quantities for the structural model: logistic parameters, corrected standard errors, Z-scores, and p-values}
 Multilevel model estimation returns (if \code{extout = FALSE}, a subset):
   \item{vOmega}{Higher-level class proportions}
   \item{mPi}{Lower-level class proportions given the higher-level latent classes}
@@ -244,6 +253,7 @@ Multilevel model estimation with lower-level covariates returns (if \code{extout
   \item{estimator}{Estimation approach for structural model}
   \item{missing_values}{Strategy for handling of eventual missing values}
   \item{sample_size}{Final sample size for model estimation}
+  \item{stru_inference}{Inference quantities for the structural model: logistic parameters, corrected standard errors, Z-scores, and p-values}
 Multilevel model estimation with lower- and higher-level covariates returns (if \code{extout = FALSE}, a subset):
   \item{mOmega}{Higher-level class proportions given the covariates}
   \item{vOmega_avg}{Higher-level class proportions averaged over higher-level units}
@@ -292,6 +302,7 @@ Multilevel model estimation with lower- and higher-level covariates returns (if 
   \item{estimator}{Estimation approach for structural model}
   \item{missing_values}{Strategy for handling of eventual missing values}
   \item{sample_size}{Final sample size for model estimation}
+  \item{stru_inference}{Inference quantities for the structural model: logistic parameters, corrected standard errors, Z-scores, and p-values}
 }
 \references{
 Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent classes and external variables. \emph{Psychometrika, 83, 871-892}.

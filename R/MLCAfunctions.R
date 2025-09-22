@@ -10,7 +10,9 @@ multiLCA = function(data, Y, iT,
                     extout = FALSE, dataout = TRUE,
                     sequential = TRUE, numFreeCores = 2,
                     maxIter = 1e3, tol = 1e-8,
-                    reord = TRUE, fixedpars = 1,
+                    reord = TRUE,
+                    reord_user = NULL, reord_user_high = NULL,
+                    fixedpars = 1,
                     NRmaxit = 100, NRtol = 1e-6,
                     verbose = TRUE){
   check_inputs1(data,Y,iT,id_high,iM,Z,Zh,startval)
@@ -47,6 +49,26 @@ multiLCA = function(data, Y, iT,
   }
   approach  = check_inputs2(data,Y,iT,id_high,iM,Z,Zh,startval)
   
+  if(length(iT)==1&(!is.null(reord_user))){
+    if(any(reord_user!=c(1:iT))){
+      reord = TRUE
+    }
+    reord_user = reord_user-1
+  } else if(length(iT)==1&is.null(reord_user)){
+    reord_user = 1:iT
+    reord_user = reord_user-1
+  }
+  if(!is.null(iM)){
+    if(length(iM)==1&(!is.null(reord_user_high))){
+      if(any(reord_user_high!=c(1:iM))){
+        reord = TRUE
+      }
+      reord_user_high = reord_user_high-1
+    } else if(length(iM)==1&is.null(reord_user_high)){
+      reord_user_high = 1:iM
+      reord_user_high = reord_user_high-1
+    }
+  }
   reord = as.numeric(reord)
   fixed = fixedpars
   if((fixed==2)&is.null(iM)) fixed=fixedpars=1
@@ -108,32 +130,32 @@ multiLCA = function(data, Y, iT,
     if(any(ivItemcat>2)|incomplete|(fixedslopes&!is.null(id_high)&!is.null(Z))){
       #
       if(is.null(id_high)&is.null(Z)&is.null(Zh)){
-        out = LCA_fast_init_poly(mY,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+        out = LCA_fast_init_poly(mY,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,reord_user,startval)
         out = clean_output1(out,Y,iT,length(Y),extout,dataout,ivItemcat)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
-        out = LCA_fast_init_wcov_poly(mY,mZ,iT,ivItemcat,incomplete,kmea,maxIter,tol,fixed,reord,
+        out = LCA_fast_init_wcov_poly(mY,mZ,iT,ivItemcat,incomplete,kmea,maxIter,tol,fixed,reord,reord_user,
                                       NRtol,NRmaxit,verbose,startval)
         out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
-        init  = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+        init  = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,reord_user,startval)
         if(!incomplete){
           out   = MLTLCA_poly(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
-                              ivItemcat,init$first_poly,maxIter,tol,reord)
+                              ivItemcat,init$first_poly,reord_user,reord_user_high,maxIter,tol,reord)
         } else{
           mY[is.na(mY)] = max(na.omit(mY))+1
           out   = MLTLCA_poly_includeall(mY,mDesign,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
-                                         ivItemcat,init$first_poly,maxIter,tol,reord)
+                                         ivItemcat,init$first_poly,reord_user,reord_user_high,maxIter,tol,reord)
         }
         out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&is.null(Zh)){
-        init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+        init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,reord_user,startval)
         if(!incomplete){
           init2 = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
-                              ivItemcat,init1$first_poly,maxIter,tol,reord)
+                              ivItemcat,init1$first_poly,reord_user,reord_user_high,maxIter,tol,reord)
         } else{
           mY[is.na(mY)] = max(na.omit(mY))+1
           init2 = MLTLCA_poly_includeall(mY,mDesign,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
-                                         ivItemcat,init1$first_poly,maxIter,tol,reord)
+                                         ivItemcat,init1$first_poly,reord_user,reord_user_high,maxIter,tol,reord)
         }
         P             = ncol(mZ)
         vOmega_start  = init2$vOmega
@@ -174,14 +196,14 @@ multiLCA = function(data, Y, iT,
         }
         out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&!is.null(Zh)){
-        init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+        init1 = meas_Init_poly(mY,id_high,vNj,iM,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,reord_user,startval)
         if(!incomplete){
           init2 = MLTLCA_poly(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
-                              ivItemcat,init1$first_poly,maxIter,tol,reord)
+                              ivItemcat,init1$first_poly,reord_user,reord_user_high,maxIter,tol,reord)
         } else{
           mY[is.na(mY)] = max(na.omit(mY))+1
           init2 = MLTLCA_poly_includeall(mY,mDesign,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
-                                         ivItemcat,init1$first_poly,maxIter,tol,reord)
+                                         ivItemcat,init1$first_poly,reord_user,reord_user_high,maxIter,tol,reord)
         }
         P                 = ncol(mZ)
         P_high            = ncol(mZh)
@@ -208,7 +230,6 @@ multiLCA = function(data, Y, iT,
           }
         }
         #
-        fixedslopes = FALSE
         if(!incomplete){
           if(!fixedslopes){
             out = MLTLCA_covlowhigh_poly(mY,mZ,mZh,vNj,mDelta_start,cGamma_start,mPhi_start,
@@ -230,20 +251,20 @@ multiLCA = function(data, Y, iT,
       }
     } else{
       if(is.null(id_high)&is.null(Z)&is.null(Zh)){
-        out = LCA_fast_init(mY,iT,kmea,maxIter,tol,reord,startval)
+        out = LCA_fast_init(mY,iT,kmea,maxIter,tol,reord,reord_user,startval)
         out = clean_output1(out,Y,iT,length(Y),extout,dataout,ivItemcat)
       } else if(is.null(id_high)&!is.null(Z)&is.null(Zh)){
-        out = LCA_fast_init_wcov(mY,mZ,iT,kmea,maxIter,tol,fixed,reord,
+        out = LCA_fast_init_wcov(mY,mZ,iT,kmea,maxIter,tol,fixed,reord,reord_user,
                                  NRtol,NRmaxit,verbose,startval)
         out = clean_output2(out,Y,iT,c("Intercept",Z),length(Y),length(Z)+1,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&is.null(Z)&is.null(Zh)){
-        init  = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,startval)
-        out   = MLTLCA(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,
+        init  = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,reord_user,startval)
+        out   = MLTLCA(mY,vNj,init$vOmega_start,init$mPi_start,init$mPhi_start,reord_user,reord_user_high,
                        maxIter,tol,reord)
         out = clean_output3(out,Y,iT,iM,mY,id_high,length(Y),id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&is.null(Zh)){
-        init1 = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,startval)
-        init2 = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
+        init1 = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,reord_user,startval)
+        init2 = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,reord_user,reord_user_high,
                        maxIter,tol,reord)
         P             = ncol(mZ)
         vOmega_start  = init2$vOmega
@@ -269,8 +290,8 @@ multiLCA = function(data, Y, iT,
                          maxIter,tol,fixedpars,NRtol,NRmaxit)
         out = clean_output4(out,Y,iT,iM,c("Intercept",Z),mY,mZ,id_high,length(Y),P,id_high_levs,id_high_name,extout,dataout,ivItemcat)
       } else if(!is.null(id_high)&!is.null(Z)&!is.null(Zh)){
-        init1   = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,startval)
-        init2   = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,
+        init1   = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord,reord_user,startval)
+        init2   = MLTLCA(mY,vNj,init1$vOmega_start,init1$mPi_start,init1$mPhi_start,reord_user,reord_user_high,
                          maxIter,tol,reord)
         P                 = ncol(mZ)
         P_high            = ncol(mZh)
@@ -480,7 +501,7 @@ multiLCA = function(data, Y, iT,
           library(tictoc)
           library(numDeriv)
           library(klaR)
-          library(tidyr)
+          library(tidyverse)
           library(MASS)})
         simultaneous_out = parallel::parLapply(cluster,1:nmod,
                                                function(x){
@@ -541,7 +562,7 @@ multiLCA = function(data, Y, iT,
           library(tictoc)
           library(numDeriv)
           library(klaR)
-          library(tidyr)
+          library(tidyverse)
           library(MASS)})
         simultaneous_out = parallel::parLapply(cluster,1:nmod,
                                                function(x){
@@ -624,13 +645,95 @@ multiLCA = function(data, Y, iT,
     out$sample_size = as.matrix(nrow(data))
     rownames(out$sample_size) = colnames(out$sample_size) = ""
   }
+  if(out$spec == "Single-level LC model with covariates"){
+    gammas  = as.matrix(out$mGamma)
+    SE      = as.matrix(out$SEs_cor_gamma)
+    Zscore  = as.matrix(out$mGamma)/as.matrix(out$SEs_cor_gamma)
+    pval    = 2*(1 - pnorm(abs(as.matrix(out$mGamma)/as.matrix(out$SEs_cor_gamma))))
+    stru_inference = array(NA,c(nrow(gammas),4,ncol(gammas)),
+                           list(paste0(substr(rownames(as.matrix(out$mGamma)), 1, nchar(rownames(as.matrix(out$mGamma))) - 1), ")"),c("Gamma", "S.E.", "Z-score", "p-value"),paste0("C",1+1:ncol(gammas))))
+    for (i in 1:ncol(gammas)){
+      stru_inference[,,i] = cbind(gammas[,i], SE[,i], Zscore[,i], pval[,i])
+    }
+    out$stru_inference = stru_inference
+  } else if(out$spec == "Multilevel LC model with lower-level covariates"){
+    if(is.null(out$mGamma_fixslope)){
+      stru_inference = list()
+      for (i in 1:dim(out$cGamma)[3]){
+        gammas  = as.matrix(out$cGamma[,,i])
+        SE      = as.matrix(out$SEs_cor_gamma[,,i])
+        Zscore  = as.matrix(out$cGamma[,,i])/as.matrix(out$SEs_cor_gamma[,,i])
+        pval    = 2*(1 - pnorm(abs(as.matrix(out$cGamma[,,i])/as.matrix(out$SEs_cor_gamma[,,i]))))
+        stru_inference[[paste0("G",i)]] = array(NA,c(nrow(gammas),4,ncol(gammas)),
+                                                list(paste0(substr(rownames(as.matrix(out$cGamma[,,i])), 1, nchar(rownames(as.matrix(out$cGamma[,,i]))) - 1), ",G", i, ")"),c("Gamma", "S.E.", "Z-score", "p-value"),paste0("C",1+1:ncol(gammas))))
+        for (j in 1:ncol(gammas)){
+          stru_inference[[paste0("G",i)]][,,j] = cbind(gammas[,j], SE[,j], Zscore[,j], pval[,j])
+        }
+      }
+    } else{
+      gammas  = as.matrix(out$mGamma_fixslope)
+      SE      = as.matrix(out$SEs_cor_gamma)
+      Zscore  = as.matrix(out$mGamma_fixslope)/as.matrix(out$SEs_cor_gamma)
+      pval    = 2*(1 - pnorm(abs(as.matrix(out$mGamma_fixslope)/as.matrix(out$SEs_cor_gamma))))
+      iM = nrow(out$vOmega)
+      stru_inference = array(NA,c(nrow(gammas),4,ncol(gammas)),
+                             list(c(paste0(substr(rownames(as.matrix(out$mGamma_fixslope))[1:iM], 1, 17), substr(rownames(as.matrix(out$mGamma_fixslope))[1:iM], 18, nchar(rownames(as.matrix(out$mGamma_fixslope))[1:iM]))),
+                                    paste0(substr(rownames(as.matrix(out$mGamma_fixslope))[-c(1:iM)], 1, nchar(rownames(as.matrix(out$mGamma_fixslope))[-c(1:iM)]) - 1), ")")),
+                                  c("Gamma", "S.E.", "Z-score", "p-value"),
+                                  paste0("C",1+1:ncol(gammas))))
+      for (i in 1:ncol(gammas)){
+        stru_inference[,,i] = cbind(gammas[,i], SE[,i], Zscore[,i], pval[,i])
+      }
+    }
+    out$stru_inference = stru_inference
+  } else if(out$spec == "Multilevel LC model with lower- and higher-level covariates"){
+    stru_inference = list()
+    alphas  = as.matrix(out$mAlpha)
+    SE      = as.matrix(out$SEs_cor_alpha)
+    Zscore  = as.matrix(out$mAlpha)/as.matrix(out$SEs_cor_alpha)
+    pval    = 2*(1 - pnorm(abs(as.matrix(out$mAlpha)/as.matrix(out$SEs_cor_alpha))))
+    stru_inference$higher_level = array(NA,c(nrow(alphas),4,ncol(alphas)),
+                                        list(paste0(substr(rownames(as.matrix(out$mAlpha)), 1, nchar(rownames(as.matrix(out$mAlpha))) - 1), ")"),c("Alpha", "S.E.", "Z-score", "p-value"),paste0("G",1+1:ncol(alphas))))
+    for (i in 1:ncol(alphas)){
+      stru_inference$higher_level[,,i] = noquote(cbind(alphas[,i], SE[,i], Zscore[,i], pval[,i]))
+    }
+    if(is.null(out$mGamma_fixslope)){
+      stru_inference$lower_level = list()
+      for (i in 1:dim(out$cGamma)[3]){
+        gammas  = as.matrix(out$cGamma[,,i])
+        SE      = as.matrix(out$SEs_cor_gamma[,,i])
+        Zscore  = as.matrix(out$cGamma[,,i])/as.matrix(out$SEs_cor_gamma[,,i])
+        pval    = 2*(1 - pnorm(abs(as.matrix(out$cGamma[,,i])/as.matrix(out$SEs_cor_gamma[,,i]))))
+        stru_inference$lower_level[[paste0("G",i)]] = array(NA,c(nrow(gammas),4,ncol(gammas)),
+                                                            list(paste0(substr(rownames(as.matrix(out$cGamma[,,i])), 1, nchar(rownames(as.matrix(out$cGamma[,,i]))) - 1), ",G", i, ")"),c("Gamma", "S.E.", "Z-score", "p-value"),paste0("C",1+1:ncol(gammas))))
+        for (j in 1:ncol(gammas)){
+          stru_inference$lower_level[[paste0("G",i)]][,,j] = cbind(gammas[,j], SE[,j], Zscore[,j], pval[,j])
+        }
+      }
+    } else{
+      gammas  = as.matrix(out$mGamma_fixslope)
+      SE      = as.matrix(out$SEs_cor_gamma)
+      Zscore  = as.matrix(out$mGamma_fixslope)/as.matrix(out$SEs_cor_gamma)
+      pval    = 2*(1 - pnorm(abs(as.matrix(out$mGamma_fixslope)/as.matrix(out$SEs_cor_gamma))))
+      iM = nrow(out$vOmega)
+      stru_inference$lower_level = array(NA,c(nrow(gammas),4,ncol(gammas)),
+                                         list(c(paste0(substr(rownames(as.matrix(out$mGamma_fixslope))[1:iM], 1, 17), substr(rownames(as.matrix(out$mGamma_fixslope))[1:iM], 18, nchar(rownames(as.matrix(out$mGamma_fixslope))[1:iM]))),
+                                                paste0(substr(rownames(as.matrix(out$mGamma_fixslope))[-c(1:iM)], 1, nchar(rownames(as.matrix(out$mGamma_fixslope))[-c(1:iM)]) - 1), ")")),
+                                              c("Gamma", "S.E.", "Z-score", "p-value"),
+                                              paste0("C",1+1:ncol(gammas))))
+      for (i in 1:ncol(gammas)){
+        stru_inference$lower_level[,,i] = cbind(gammas[,i], SE[,i], Zscore[,i], pval[,i])
+      }
+    }
+    out$stru_inference = stru_inference
+  }
 
   out$call = match.call()
   class(out) = "multiLCA"
   return(out)
 }
 #
-LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
+LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, reord_user = 1:iT-1, startval = NULL){
   group_by_all  = NULL
   mY_df         = data.frame(mY)
   mY_aggr       = as.matrix(mY_df%>%group_by_all%>%count)
@@ -657,13 +760,13 @@ LCA_fast_init = function(mY, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1,
     clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
     mU          = clusfoo
   }
-  out           = LCA_fast(mY_unique,freq,iT,mU,maxIter,tol,reord)
+  out           = LCA_fast(mY_unique,freq,iT,mU,reord_user,maxIter,tol,reord)
   out$mY_unique = mY_unique
   out$freq      = freq
   return(out)
 }
 #
-LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1,
+LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1, reord_user = 1:iT-1,
                               NRtol = 1e-6, NRmaxit = 100, verbose, startval){
   # mZ must include a column of ones!
   group_by_all    = NULL
@@ -692,7 +795,7 @@ LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, f
     clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
     mU          = clusfoo
   }
-  out             = LCA_fast(mY_unique,freq,iT,mU,maxIter,tol,reord)
+  out             = LCA_fast(mY_unique,freq,iT,mU,reord_user,maxIter,tol,reord)
   P               = ncol(mZ)
   mBeta_init      = matrix(0,P,iT-1)
   mBeta_init[1,]  = out$alphas
@@ -713,7 +816,7 @@ LCA_fast_init_wcov = function(mY, mZ, iT, kmea = T, maxIter = 1e3, tol = 1e-8, f
   return(list(out=out,outcov=outcov,mY=mY,mZ=mZ))
 }
 #
-LCA_fast_init_whigh = function(mY, id_high, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval){
+LCA_fast_init_whigh = function(mY, id_high, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, reord_user = 1:iT-1, startval){
   group_by_all = NULL
   mY_df     = data.frame(mY,id_high)
   mY_aggr   = as.matrix(mY_df%>%group_by_all%>%count)
@@ -741,12 +844,12 @@ LCA_fast_init_whigh = function(mY, id_high, iT, kmea = T, maxIter = 1e3, tol = 1
     clusfoo     = clusfoo[,paste0("clusfoo",1:nclusfoo)]
     mU          = clusfoo
   }
-  out       = LCA_fast(mY_unique,freq,iT,mU,maxIter,tol,reord)
+  out       = LCA_fast(mY_unique,freq,iT,mU,reord_user,maxIter,tol,reord)
   mU        = out$mU[rep(1:nrow(mY_unique),freq),]
   return(list(out=out,mU=mU))
 }
 #
-meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
+meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, reord_user = 1:iT-1, startval = NULL){
   # Fixed number of low- (iT) and high- (iM) level classes
   iJ = length(vNj)
   iN = dim(mY)[1]
@@ -754,7 +857,7 @@ meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e
   # 
   # Working out starting values at the low level first
   # 
-  out_LCA = LCA_fast_init_whigh(mY,id_high,iT,kmea,maxIter,tol,reord,startval)
+  out_LCA = LCA_fast_init_whigh(mY,id_high,iT,kmea,maxIter,tol,reord,reord_user,startval)
   # 
   # Now turning to the higher level
   # 
@@ -789,7 +892,7 @@ meas_Init = function(mY, id_high, vNj, iM, iT, kmea = T, maxIter = 1e3, tol = 1e
   return(list(vOmega_start=vOmega_start, mPi_start = mPi_start, mPhi_start = mPhi_start))
 }
 #
-LCA_fast_init_poly = function(mY, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
+LCA_fast_init_poly = function(mY, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, reord_user = 1:iT-1, startval = NULL){
   # ivItemcat is the vector of number of categories for each item
   group_by_all  = NULL
   mY_df         = data.frame(mY)
@@ -844,9 +947,9 @@ LCA_fast_init_poly = function(mY, iT, ivItemcat, incomplete = F, kmea = T, maxIt
   first_poly    = sapply(ivItemcat,function(x){y=x;if(y==2)y=1;return(y)})
   first_poly    = cumsum(first_poly)-first_poly
   if(!incomplete){
-    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,reord_user,maxIter,tol,reord)
   } else{
-    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,reord_user,maxIter,tol,reord)
   }
   mY_unique[mY_unique==max(mY_unique)] = NA
   out$mY_unique = mY_unique
@@ -854,7 +957,7 @@ LCA_fast_init_poly = function(mY, iT, ivItemcat, incomplete = F, kmea = T, maxIt
   return(out)
 }
 #
-LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1,
+LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, fixed = 0, reord = 1, reord_user = 1:iT-1,
                                    NRtol = 1e-6, NRmaxit = 100, verbose, startval){
   # mZ must include a column of ones!
   # ivItemcat is the vector of number of categories for each item
@@ -911,9 +1014,9 @@ LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, incomplete = F, kmea =
   first_poly      = sapply(ivItemcat,function(x){y=x;if(y==2)y=1;return(y)})
   first_poly      = cumsum(first_poly)-first_poly
   if(!incomplete){
-    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,reord_user,maxIter,tol,reord)
   } else{
-    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,reord_user,maxIter,tol,reord)
   }
   P               = ncol(mZ)
   mBeta_init      = matrix(0,P,iT-1)
@@ -944,7 +1047,7 @@ LCA_fast_init_wcov_poly = function(mY, mZ, iT, ivItemcat, incomplete = F, kmea =
   return(list(out=out,outcov=outcov,mY=mY,mZ=mZ))
 }
 #
-LCA_fast_init_whigh_poly = function(mY, id_high, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval){
+LCA_fast_init_whigh_poly = function(mY, id_high, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, reord_user = 1:iT-1, startval){
   # ivItemcat is the vector of number of categories for each item
   group_by_all = NULL
   mY_df     = data.frame(mY,id_high)
@@ -1000,15 +1103,15 @@ LCA_fast_init_whigh_poly = function(mY, id_high, iT, ivItemcat, incomplete = F, 
   first_poly  = sapply(ivItemcat,function(x){y=x;if(y==2)y=1;return(y)})
   first_poly  = cumsum(first_poly)-first_poly
   if(!incomplete){
-    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+    out       = LCA_fast_poly(mY_unique,freq,iT,mU,ivItemcat,first_poly,reord_user,maxIter,tol,reord)
   } else{
-    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,maxIter,tol,reord)
+    out       = LCA_fast_poly_includeall(mY_unique,mDesign,freq,iT,mU,ivItemcat,first_poly,reord_user,maxIter,tol,reord)
   }
   mU          = out$mU[rep(1:nrow(mY_unique),freq),]
   return(list(out=out,mU=mU,first_poly=first_poly))
 }
 #
-meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, startval = NULL){
+meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, incomplete = F, kmea = T, maxIter = 1e3, tol = 1e-8, reord = 1, reord_user = 1:iT-1, startval = NULL){
   # Fixed number of low- (iT) and high- (iM) level classes
   # ivItemcat is the vector of number of categories for each item
   iJ = length(vNj)
@@ -1017,7 +1120,7 @@ meas_Init_poly = function(mY, id_high, vNj, iM, iT, ivItemcat, incomplete = F, k
   # 
   # Working out starting values at the low level first
   # 
-  out_LCA = LCA_fast_init_whigh_poly(mY,id_high,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,startval)
+  out_LCA = LCA_fast_init_whigh_poly(mY,id_high,iT,ivItemcat,incomplete,kmea,maxIter,tol,reord,reord_user,startval)
   # 
   # now turning to higher level
   # 
@@ -1091,7 +1194,7 @@ simultsel_fun = function(mY,id_high,iT,iM,kmea,maxIter,tol,reord){
     start       = meas_Init(mY,id_high,vNj,iM,iT,kmea,maxIter,tol,reord)
     vOmegast    = start$vOmega_start
     mPi         = start$mPi_start
-    outmuLCA    = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
+    outmuLCA    = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,1:iT-1,1:iM-1,maxIter,tol,reord)
     ll          = tail(outmuLCA$LLKSeries,1) 
     BIClow      = outmuLCA$BIClow
     BIChigh     = outmuLCA$BIChigh
@@ -1184,7 +1287,7 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose,kmea,maxIter,tol,reo
         start     = meas_Init(mY,id_high,vNj,i,iT_currbest,kmea,maxIter,tol,reord)
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
-        outmuLCA2[[1+i-iM_min]]         = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
+        outmuLCA2[[1+i-iM_min]]         = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,1:iT_currbest-1,1:i-1,maxIter,tol,reord)
         BIClow_step2[1+i-iM_min]        = outmuLCA2[[1+i-iM_min]]$BIClow
         BIChigh_step2[1+i-iM_min]       = outmuLCA2[[1+i-iM_min]]$BIChigh
         AIC_step2[1+i-iM_min]           = outmuLCA2[[1+i-iM_min]]$AIC
@@ -1216,7 +1319,7 @@ lukosel_fun = function(mY,id_high,iT_range,iM_range,verbose,kmea,maxIter,tol,reo
         start     = meas_Init(mY,id_high,vNj,iM_currbest,i,kmea,maxIter,tol,reord)
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
-        outmuLCA3[[1+i-iT_min]]       = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
+        outmuLCA3[[1+i-iT_min]]       = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,1:i-1,1:iM_currbest-1,maxIter,tol,reord)
         BIClow_step3[1+i-iT_min]      = outmuLCA3[[1+i-iT_min]]$BIClow
         BIChigh_step3[1+i-iT_min]     = outmuLCA3[[1+i-iT_min]]$BIChigh
         AIC_step3[1+i-iT_min]         = outmuLCA3[[1+i-iT_min]]$AIC
@@ -1309,7 +1412,7 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose,kmea,maxIter,
           start     = meas_Init(mY,id_high,vNj,iM_range,i,kmea,maxIter,tol,reord)
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
-          outmuLCA[[1+i-iT_min]]  = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
+          outmuLCA[[1+i-iT_min]]  = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,1:i-1,1:iM_range-1,maxIter,tol,reord)
           BIClow[1+i-iT_min]      = outmuLCA[[1+i-iT_min]]$BIClow
           BIChigh[1+i-iT_min]     = outmuLCA[[1+i-iT_min]]$BIChigh
           AIC[1+i-iT_min]         = outmuLCA[[1+i-iT_min]]$AIC
@@ -1353,7 +1456,7 @@ sel_other = function(mY,id_high,iT_range,iM_range,approach,verbose,kmea,maxIter,
           start     = meas_Init(mY,id_high,vNj,i,iT_range,kmea,maxIter,tol,reord)
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
-          outmuLCA[[1+i-iM_min]]    = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,maxIter,tol,reord)
+          outmuLCA[[1+i-iM_min]]    = MLTLCA(mY,vNj,vOmegast,mPi,start$mPhi_start,1:iT_range-1,1:i-1,maxIter,tol,reord)
           BIClow[1+i-iM_min]        = outmuLCA[[1+i-iM_min]]$BIClow
           BIChigh[1+i-iM_min]       = outmuLCA[[1+i-iM_min]]$BIChigh
           AIC[1+i-iM_min]           = outmuLCA[[1+i-iM_min]]$AIC
@@ -1412,11 +1515,11 @@ simultsel_fun_poly = function(mY,mDesign,id_high,iT,iM,ivItemcat,kmea,maxIter,to
     mPi         = start$mPi_start
     if(!incomplete){
       outmuLCA    = MLTLCA_poly(mY,vNj,vOmegast,mPi,
-                                start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+                                start$mPhi_start,ivItemcat,start$first_poly,1:iT-1,1:iM-1,maxIter,tol,reord)
     } else{
       mY[is.na(mY)] = max(na.omit(mY))+1
       outmuLCA    = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,
-                                           start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+                                           start$mPhi_start,ivItemcat,start$first_poly,1:iT-1,1:iM-1,maxIter,tol,reord)
     }
     ll          = tail(outmuLCA$LLKSeries,1)
     BIClow      = outmuLCA$BIClow
@@ -1512,10 +1615,10 @@ lukosel_fun_poly = function(mY,mDesign,id_high,iT_range,iM_range,ivItemcat,verbo
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
         if(!incomplete){
-          outmuLCA2[[1+i-iM_min]]         = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          outmuLCA2[[1+i-iM_min]]         = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:iT_currbest-1,1:i-1,maxIter,tol,reord)
         } else{
           mY[is.na(mY)] = max(na.omit(mY))+1
-          outmuLCA2[[1+i-iM_min]]         = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          outmuLCA2[[1+i-iM_min]]         = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:iT_currbest-1,1:i-1,maxIter,tol,reord)
         }
         BIClow_step2[1+i-iM_min]        = outmuLCA2[[1+i-iM_min]]$BIClow
         BIChigh_step2[1+i-iM_min]       = outmuLCA2[[1+i-iM_min]]$BIChigh
@@ -1549,10 +1652,10 @@ lukosel_fun_poly = function(mY,mDesign,id_high,iT_range,iM_range,ivItemcat,verbo
         vOmegast  = start$vOmega_start
         mPi       = start$mPi_start
         if(!incomplete){
-          outmuLCA3[[1+i-iT_min]]       = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          outmuLCA3[[1+i-iT_min]]       = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:i-1,1:iM_currbest-1,maxIter,tol,reord)
         } else{
           mY[is.na(mY)] = max(na.omit(mY))+1
-          outmuLCA3[[1+i-iT_min]]       = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+          outmuLCA3[[1+i-iT_min]]       = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:i-1,1:iM_currbest-1,maxIter,tol,reord)
         }
         BIClow_step3[1+i-iT_min]      = outmuLCA3[[1+i-iT_min]]$BIClow
         BIChigh_step3[1+i-iT_min]     = outmuLCA3[[1+i-iT_min]]$BIChigh
@@ -1648,10 +1751,10 @@ sel_other_poly = function(mY,mDesign,id_high,iT_range,iM_range,ivItemcat,approac
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
           if(!incomplete){
-            outmuLCA[[1+i-iT_min]]  = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+            outmuLCA[[1+i-iT_min]]  = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:i-1,1:iM_range-1,maxIter,tol,reord)
           } else{
             mY[is.na(mY)] = max(na.omit(mY))+1
-            outmuLCA[[1+i-iT_min]]  = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+            outmuLCA[[1+i-iT_min]]  = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:i-1,1:iM_range-1,maxIter,tol,reord)
           }
           BIClow[1+i-iT_min]      = outmuLCA[[1+i-iT_min]]$BIClow
           BIChigh[1+i-iT_min]     = outmuLCA[[1+i-iT_min]]$BIChigh
@@ -1697,10 +1800,10 @@ sel_other_poly = function(mY,mDesign,id_high,iT_range,iM_range,ivItemcat,approac
           vOmegast  = start$vOmega_start
           mPi       = start$mPi_start
           if(!incomplete){
-            outmuLCA[[1+i-iM_min]]    = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+            outmuLCA[[1+i-iM_min]]    = MLTLCA_poly(mY,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:iT_range-1,1:i-1,maxIter,tol,reord)
           } else{
             mY[is.na(mY)] = max(na.omit(mY))+1
-            outmuLCA[[1+i-iM_min]]    = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,maxIter,tol,reord)
+            outmuLCA[[1+i-iM_min]]    = MLTLCA_poly_includeall(mY,mDesign,vNj,vOmegast,mPi,start$mPhi_start,ivItemcat,start$first_poly,1:iT_range-1,1:i-1,maxIter,tol,reord)
           }
           BIClow[1+i-iM_min]        = outmuLCA[[1+i-iM_min]]$BIClow
           BIChigh[1+i-iM_min]       = outmuLCA[[1+i-iM_min]]$BIChigh
@@ -3155,7 +3258,7 @@ check_inputs2 = function(data,Y,iT,id_high,iM,Z,Zh,startval){
         
         stop("Invalid iM.",call.=FALSE)
         
-      } else if(iM<1){
+      } else if(iM<=1){
         
         stop("Invalid iM.",call.=FALSE)
         
@@ -3608,9 +3711,9 @@ print.multiLCA = function(x,...){
     
   } else if(x$spec == "Multilevel LC model with lower- and higher-level covariates"){
     
-    #########################################################################
-    ### Multilevel structural model with low- and higher-level covariates ###
-    #########################################################################
+    ###########################################################################
+    ### Multilevel structural model with lower- and higher-level covariates ###
+    ###########################################################################
     
     cat("\nCALL:\n")
     print(x$call)
