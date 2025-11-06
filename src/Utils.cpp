@@ -5,6 +5,43 @@
 using namespace arma;
 using namespace Rcpp;
 
+// [[Rcpp::export]]
+arma::mat psinv(const arma::mat A, int max_iter = 1000, double tol = 2.220446e-16) {
+  int k;
+  arma::mat AH = A.t();          // Hermitian transpose
+  AH = arma::conj(AH);
+  arma::mat absB = arma::abs(A * AH);
+  
+  // Compute step size alpha
+  arma::vec row_sums = arma::sum(absB, 1);
+  double m = row_sums.max();
+  double alpha = 1.0 / m;           // any alpha < 2/m works
+  
+  // Initialize Y
+  // arma::cx_mat Y = alpha * arma::conj(A.t());
+  arma::mat Y = alpha * AH;
+  arma::mat Ynext;
+  
+  // Precompute identity
+  arma::mat I = arma::eye(A.n_rows, A.n_rows);
+  
+  for (k = 0; k < max_iter; ++k) {
+    Ynext = Y * (2.0 * I - A * Y);
+    double diff = arma::abs(Ynext - Y).max();
+    if (diff < tol) {
+      // Rcpp::Rcout << "Converged after " << k + 1 << " steps" << std::endl;
+      break;
+    }
+    Y = Ynext;
+  }
+  
+  return Ynext;
+}
+
+
+
+
+
 
 
 double abs3(double x){

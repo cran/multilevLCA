@@ -432,7 +432,7 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
     nfreepar_res = 0;
   }
   arma::mat Infomat = mScore.t()*mScore/(iN*iM);
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/(iN*iM);
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/(iN*iM);
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -441,7 +441,7 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -922,7 +922,7 @@ List MLTLCA_covWfixedlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arm
     nfreepar_res = 0;
   }
   arma::mat Infomat = mScore.t()*mScore/(iN*iM);
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/(iN*iM);
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/(iN*iM);
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -931,7 +931,7 @@ List MLTLCA_covWfixedlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arm
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -1392,7 +1392,7 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
   }
   
   arma::mat Infomat = mScore.t()*mScore/(iN*iM);
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/(iN*iM);
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/(iN*iM);
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -1404,7 +1404,7 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat);
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16);
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -1860,7 +1860,7 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
   }
   
   arma::mat Infomat = mScore.t()*mScore/(iN*iM);
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/(iN*iM);
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/(iN*iM);
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -1872,7 +1872,7 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat);
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16);
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -2325,7 +2325,7 @@ List MLTLCA_covlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ma
     nfreepar_res = 0;
   }
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -2333,7 +2333,7 @@ List MLTLCA_covlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ma
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -2772,7 +2772,7 @@ List MLTLCA_cov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, a
   }
   
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -2783,7 +2783,7 @@ List MLTLCA_cov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, a
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat);
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16);
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -3256,7 +3256,7 @@ List MLTLCA_poly_includeall(arma::mat mY, arma::mat mDesign, arma::vec vNj, arma
   
   arma::mat mScore = join_rows(join_rows(mOmega_Score,mGamma_Score),mBeta_Score);
   arma::mat Infomat = mScore.t()*mScore/(1.0*iN);
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/(1.0*iN);
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/(1.0*iN);
   // arma::mat Varmat = inv(Infomat)/(1.0*iN);
   arma::vec SEs =  sqrt(Varmat.diag());
   
@@ -3683,7 +3683,7 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
     nfreepar_res = 0;
   }
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -3691,7 +3691,7 @@ List MLTLCA_covlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -4108,7 +4108,7 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   }
   
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -4119,7 +4119,7 @@ List MLTLCA_cov_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat);
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16);
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + nfreepar_res-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -4587,7 +4587,7 @@ List MLTLCA_poly(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, a
   
   arma::mat mScore = join_rows(join_rows(mOmega_Score,mGamma_Score),mBeta_Score);
   arma::mat Infomat = mScore.t()*mScore/(1.0*iN);
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/(1.0*iN);
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/(1.0*iN);
   // arma::mat Varmat = inv(Infomat)/(1.0*iN);
   arma::vec SEs =  sqrt(Varmat.diag());
   
@@ -4936,7 +4936,7 @@ List MLTLCA_covlowhigh(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec vNj,
   
   arma::mat mScore = join_rows(join_rows(mDelta_Score_out,mGamma_Score),mBeta_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -4944,7 +4944,7 @@ List MLTLCA_covlowhigh(arma::mat mY, arma::mat mZ, arma::mat mZh, arma::vec vNj,
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iT*iK)-1,uncondLatpars + (iT*iK)-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iT*iK)-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -5265,7 +5265,7 @@ List MLTLCA_cov(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_star
   }
   arma::mat mScore = join_rows(join_rows(mOmega_Score,mGamma_Score),mBeta_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
@@ -5273,7 +5273,7 @@ List MLTLCA_cov(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec vOmega_star
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iT*iK)-1,uncondLatpars + (iT*iK)-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iT*iK)-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -5659,7 +5659,7 @@ List MLTLCA(arma::mat mY, arma::vec vNj, arma::vec vOmega, arma::mat mPi, arma::
   
   arma::mat mScore = join_rows(join_rows(mOmega_Score,mGamma_Score),mBeta_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;

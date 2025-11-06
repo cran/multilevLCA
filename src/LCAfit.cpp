@@ -1,3 +1,4 @@
+#define DARMA_USE_CURRENT
 #define ARMA_WARN_LEVEL 1
 #include <RcppArmadillo.h>
 #include "SafeFunctions.h"
@@ -224,7 +225,7 @@ List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq
 
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;
@@ -497,7 +498,7 @@ List LCAcov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, int i
   
   arma::mat mScore = join_rows(mbeta_score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   
   // Matrix formula
@@ -506,7 +507,7 @@ List LCAcov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, int i
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iK*nfreepar_res)-1,uncondLatpars + (iK*nfreepar_res)-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iK*nfreepar_res)-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -784,7 +785,7 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   
   arma::mat mScore = join_rows(mbeta_score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   
   // Matrix formula
@@ -793,7 +794,7 @@ List LCAcov_poly(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat m
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iK*nfreepar_res)-1,uncondLatpars + (iK*nfreepar_res)-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iK*nfreepar_res)-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -1050,7 +1051,7 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
 
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;
@@ -1300,7 +1301,7 @@ List LCAcov(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat mBeta,
   
   arma::mat mScore = join_rows(mbeta_score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   
   // Matrix formula
@@ -1309,7 +1310,7 @@ List LCAcov(arma::mat mY, arma::mat mZ, int iK, arma::mat mPhi, arma::mat mBeta,
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars-1,uncondLatpars-1,uncondLatpars + (iK*iH)-1,uncondLatpars + (iK*iH)-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
-  arma::mat mJmatInv  = pinv(mJmat); 
+  arma::mat mJmatInv  = psinv(mJmat,1000,2.220446e-16); 
   arma::mat mH        = Infomat.submat(0,parsfree-1,parsfree-1,parsfree + (iK*iH)-1);
   arma::mat mQ        =  mJmatInv*mH*mSigma11*mH.t()*mJmatInv;
   arma::mat mVar_corr = mV2 + mQ;
@@ -1642,7 +1643,7 @@ List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::vec r
   
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
   arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = pinv(Infomat,1.490116e-08,"std")/iN;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;

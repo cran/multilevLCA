@@ -192,6 +192,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// psinv
+arma::mat psinv(const arma::mat A, int max_iter, double tol);
+RcppExport SEXP _multilevLCA_psinv(SEXP ASEXP, SEXP max_iterSEXP, SEXP tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat >::type A(ASEXP);
+    Rcpp::traits::input_parameter< int >::type max_iter(max_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(psinv(A, max_iter, tol));
+    return rcpp_result_gen;
+END_RCPP
+}
 // rando_index
 int rando_index(arma::vec p);
 RcppExport SEXP _multilevLCA_rando_index(SEXP pSEXP) {
@@ -753,6 +766,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_multilevLCA_LCA", (DL_FUNC) &_multilevLCA_LCA, 7},
     {"_multilevLCA_LCA_fast", (DL_FUNC) &_multilevLCA_LCA_fast, 8},
     {"_multilevLCA_MixtDensityScale", (DL_FUNC) &_multilevLCA_MixtDensityScale, 3},
+    {"_multilevLCA_psinv", (DL_FUNC) &_multilevLCA_psinv, 3},
     {"_multilevLCA_rando_index", (DL_FUNC) &_multilevLCA_rando_index, 1},
     {"_multilevLCA_zero_bound", (DL_FUNC) &_multilevLCA_zero_bound, 2},
     {"_multilevLCA_logisticReg", (DL_FUNC) &_multilevLCA_logisticReg, 6},

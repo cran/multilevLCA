@@ -41,6 +41,10 @@ MixtDensityScale <- function(vOmega, vD_log, iJ) {
     .Call('_multilevLCA_MixtDensityScale', PACKAGE = 'multilevLCA', vOmega, vD_log, iJ)
 }
 
+psinv <- function(A, max_iter = 1000L, tol = 2.220446e-16) {
+    .Call('_multilevLCA_psinv', PACKAGE = 'multilevLCA', A, max_iter, tol)
+}
+
 rando_index <- function(p) {
     .Call('_multilevLCA_rando_index', PACKAGE = 'multilevLCA', p)
 }

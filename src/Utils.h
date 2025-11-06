@@ -1,6 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+arma::mat psinv(const arma::mat A, const int max_iter, const double tol);
 double abs3(double x);
 int WhichMax(arma::vec vX);
 int rando_index(arma::vec p);
