@@ -536,6 +536,7 @@ List LCAcov_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat mZ, int i
   EMout["Varmat_unc"]     = Varmat;
   EMout["Varmat_cor"]     = mVar_corr;
   EMout["LLKSeries"] = LLKSeries;
+  EMout["vLLK"]      = vLLK;
   EMout["eps"]       = eps;
   EMout["iter"]      = iter;
   EMout["BIC"]       = BIC;
