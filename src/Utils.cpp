@@ -291,6 +291,7 @@ List NR_step_covIT(arma::mat mX, arma::mat mbeta, arma::mat mU, double tol=1e-06
   arma::mat sbeta(K-1,P);
   arma::vec foosbeta(P);
   arma::vec NRstep(P);
+  arma::mat mNRstep = zeros(K-1,P);
   double foostep;
   double eps=1e100;
   double lk0;
@@ -306,10 +307,12 @@ List NR_step_covIT(arma::mat mX, arma::mat mbeta, arma::mat mU, double tol=1e-06
     ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
   }
   lk0 = accu(mU%log(w_i));
+  lk = lk0;
   while(eps > tol && it < maxIt){
     for(k = 1; k < K; k++){
       sbeta.row(k-1) = (mU.col(k) - w_i.col(k)).t() * X;
     }
+    mNRstep.zeros();
     if(K > 2){
       arma::vec ww(N);
       for(k=1; k < K; k++){
@@ -328,39 +331,14 @@ List NR_step_covIT(arma::mat mX, arma::mat mbeta, arma::mat mU, double tol=1e-06
         if(foostep > 0.5){
           NRstep = NRstep/foostep*0.5;
         }
-        // needs a trick to make sure it's monotone!!!
-        // code below taken from lasso paper
-        // begins here!!!!
-        // for(c = 0; c < iC; c++){
-        //   ctrl = 1;
-        //   while(ctrl==1){
-        //     alphanext.col(c) = alphastart - NR_con(c)*NR_step;
-        //     for(g = 0; g < (G-1);g++){
-        //       if(abs3(alphanext(g,c)) > 12.0){
-        //         NR_con(c) = NR_con(c)*0.9;
-        //       }
-        //       else{
-        //         ctrl = 0;
-        //       }
-        //     }
-        //   }
-        //   for(g = 0; g < (G-1);g++){
-        //     pignext(g,c) = exp(alphanext(g,c));
-        //   }
-        //   pignext.col(c) = pignext.col(c)/accu(pignext.col(c));
-        //   par_loglike(c) = (-1.0)*accu(Uplusl%log(pignext.col(c)) - pow(pignext.col(c),gamma)%lambdag%normBg);
-        //   
-        // }
-        // ends here!!!!
-        
-        mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
+        mNRstep.row(k-1) = NRstep.t();
       }
     }
     if(K==2){
-      double ww;
-      ww = accu(w.col(1));
       for(k=1; k < K; k++){
-        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X*ww);
+        // For K=2, the other unnormalised category has weight one for
+        // every observation; no extra scalar multiplier is required.
+        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X);
         NRstep = solve(ibeta.slice(k-1),sbeta.row(k-1).t());
         for(p = 0; p < P; p++){
           foosbeta(p) = abs3(NRstep(p));
@@ -369,182 +347,85 @@ List NR_step_covIT(arma::mat mX, arma::mat mbeta, arma::mat mU, double tol=1e-06
         if(foostep > 0.5){
           NRstep = NRstep/foostep*0.5;
         }
-        mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
+        mNRstep.row(k-1) = NRstep.t();
       }
     }
-    w.fill(1.0);
-    w_i.fill(1.0);
-    ta.fill(1.0);
-    for(n = 0; n < N; n++){
-      for(k = 1; k < K; k++){
-        w(n,k) = exp(accu(X.row(n) % mbeta.row(k-1)));
-        w_i(n,k) = w(n,k);
-        ta(n,k) = w(n,k);
-      }
-      w_i.row(n) = w_i.row(n)/accu(w_i.row(n));
-      ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
-    }
-    
-    lk = accu(mU%log(w_i));
-    if(it > 3){
-      eps = abs3(lk -lk0);
-    }
-    it = it + 1;
-    lk0 = lk;
-  }
-  
-  arma::mat mSbeta(N,(K-1)*P);
-  int iter = 0;
-  for(k = 1; k < K; k++){
-    for(n = 0; n < N; n++){
-      mSbeta.row(n).subvec(iter,iter + P - 1) = (mU(n,k) - w_i(n,k)) * X.row(n);
-    }
-    iter = iter + P;
-  }
-  iter = 0;
-  
-  List NR_out;
-  NR_out["beta"]   = mbeta;
-  NR_out["ibeta"]  = ibeta;
-  NR_out["sbeta"]  = sbeta;
-  NR_out["w_i"]    = w_i;
-  NR_out["mSbeta"] = mSbeta;
-  NR_out["lk"] = lk;
-  NR_out["lk0"] = lk0;
-  
-  return NR_out;
-}
 
+    // Backtracking line search on the multinomial log-likelihood.
+    // The Newton direction is unchanged; only its accepted step length
+    // is reduced when the full step does not increase the objective.
+    double NR_LS = 1.0;
+    bool accepted = false;
+    int LSiter = 0;
+    const int LSmaxit = 60;
+    arma::mat mbeta_foo = mbeta;
+    arma::mat w_foo = w;
+    arma::mat w_i_foo = w_i;
+    double lkfoo = lk0;
 
-//[[Rcpp::export]]
-List NR_step_covIT_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, double tol=1e-06, int maxIt = 100){
-  // LS stands for line search: preserves monotonicity in the EM algorithm
-  // iC is an integer, tells how much the NR step should be decreased to recompute the parameter update
-  // X should contain a column of ones to include the intercept term
-  // mbeta is K-1 x P
-  // N is the sample size
-  // K is the number of classes
-  // P is the number of covariates (including the intercept)
-  int N = mX.n_rows;
-  int K = mU.n_cols;
-  int P = mX.n_cols;
-  int j,k,n,p;
-  double NR_LS = 1.0;
-  arma::mat mbeta_foo = mbeta;
-  arma::mat X = mX;
-  arma::mat w = ones(N,K);
-  arma::mat w_i = w;
-  arma::mat w_i_foo = w_i;
-  arma::mat w_i_foonum = w_i;
-  arma::mat ta = w;
-  arma::cube ibeta(P,P,K-1);
-  arma::mat sbeta(K-1,P);
-  arma::vec foosbeta(P);
-  arma::vec NRstep(P);
-  double foostep;
-  double eps=1e100;
-  double lk0;
-  double lk;
-  // arma::vec lkfoo = zeros(iC,1);
-  double dLKfoo = 0.0;
-  double control = 0.0;
-  int it=0;
-  int fooiter =0;
-  for(n = 0; n < N; n++){
-    for(k = 1; k < K; k++){
-      w(n,k) = exp(accu(X.row(n) % mbeta.row(k-1)));
-      w_i(n,k) = w(n,k);
-      ta(n,k) = w(n,k);
-    }
-    w_i.row(n) = w_i.row(n)/accu(w_i.row(n));
-    ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
-  }
-  lk0 = accu(mU%log(w_i));
-  while(eps > tol && it < maxIt){
-    for(k = 1; k < K; k++){
-      sbeta.row(k-1) = (mU.col(k) - w_i.col(k)).t() * X;
-    }
-    if(K > 2){
-      arma::vec ww(N);
-      for(k=1; k < K; k++){
-        ww.fill(0.0);
-        for(j = 0; j < K; j++){
-          if(k!=j){
-            ww = ww + w.col(j);
-          }
-        }
-        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%repmat(ww,1,P));
-        NRstep = solve(ibeta.slice(k-1),sbeta.row(k-1).t());
-        for(p = 0; p < P; p++){
-          foosbeta(p) = abs3(NRstep(p));
-        }
-        foostep = max(foosbeta);
-        if(foostep > 0.5){
-          NRstep = NRstep/foostep*0.5;
-        }
-        // for(c = 0; c < iC; c++){
-        //   cbeta.slice(c).row(k-1) = mbeta.row(k-1) + NR_LS(c)*NRstep.t();
-        // }
-        // mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
-      }
-    }
-    if(K==2){
-      double ww;
-      ww = accu(w.col(1));
-      for(k=1; k < K; k++){
-        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X*ww);
-        NRstep = solve(ibeta.slice(k-1),sbeta.row(k-1).t());
-        for(p = 0; p < P; p++){
-          foosbeta(p) = abs3(NRstep(p));
-        }
-        foostep = max(foosbeta);
-        if(foostep > 0.5){
-          NRstep = NRstep/foostep*0.5;
-        }
-        // mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
-        // for(c = 0; c < iC; c++){
-        //   cbeta.slice(c).row(k-1) = mbeta.row(k-1) + NR_LS(c)*NRstep.t();
-        // }
-        
-      }
-    }
-    NR_LS = 1.0;
-    control = 0.0;
-    fooiter = 0;
-    while(control == 0.0 && fooiter < maxIt){
-      w_i_foo.fill(1.0);
-      for(k=1; k < K; k++){
-        mbeta_foo.row(k-1) = mbeta.row(k-1) + NR_LS*NRstep.t();
-      }
-      w_i_foo.cols(1,K-1) = exp(X*mbeta_foo.t());
-      w_i_foonum = w_i_foo;
+    while(!accepted && LSiter < LSmaxit){
+      mbeta_foo = mbeta + NR_LS*mNRstep;
+      w_foo.ones();
+      w_i_foo.ones();
       for(n = 0; n < N; n++){
+        for(k = 1; k < K; k++){
+          w_foo(n,k) = exp(accu(X.row(n) % mbeta_foo.row(k-1)));
+          w_i_foo(n,k) = w_foo(n,k);
+        }
         w_i_foo.row(n) = w_i_foo.row(n)/accu(w_i_foo.row(n));
       }
-      dLKfoo = accu(mU%log(w_i_foo));
-      if((dLKfoo -lk0) < 0){
-        NR_LS = NR_LS*dC;
-        fooiter +=1;
+      lkfoo = accu(mU%log(w_i_foo));
+      if(lkfoo >= lk0){
+        accepted = true;
       }else{
-        control = 1.0;
-        mbeta = mbeta_foo;
+        NR_LS = NR_LS*0.5;
+        LSiter +=1;
       }
     }
-    w   = w_i_foonum;
-    w_i = w_i_foo;
-    
-    
-    lk = dLKfoo;
-    
-    for(n = 0; n < N; n++){
-      ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
+
+    if(accepted){
+      mbeta = mbeta_foo;
+      w = w_foo;
+      w_i = w_i_foo;
+      ta.ones();
+      for(n = 0; n < N; n++){
+        ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
+      }
+      lk = lkfoo;
+      if(it > 3){
+        eps = abs3(lk -lk0);
+      }
+      lk0 = lk;
+    }else{
+      // No admissible increase was found: retain the current iterate.
+      lk = lk0;
+      eps = 0.0;
     }
-    
-    eps = abs3(lk -lk0);
     it = it + 1;
-    lk0 = lk;
   }
-  
+
+  // Recompute score and information blocks at the final accepted iterate.
+  for(k = 1; k < K; k++){
+    sbeta.row(k-1) = (mU.col(k) - w_i.col(k)).t() * X;
+  }
+  if(K > 2){
+    arma::vec ww(N);
+    for(k=1; k < K; k++){
+      ww.fill(0.0);
+      for(j = 0; j < K; j++){
+        if(k!=j){
+          ww = ww + w.col(j);
+        }
+      }
+      ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%repmat(ww,1,P));
+    }
+  }
+  if(K==2){
+    for(k=1; k < K; k++){
+      ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X);
+    }
+  }
+
   arma::mat mSbeta(N,(K-1)*P);
   int iter = 0;
   for(k = 1; k < K; k++){
@@ -554,7 +435,7 @@ List NR_step_covIT_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, do
     iter = iter + P;
   }
   iter = 0;
-  
+
   List NR_out;
   NR_out["beta"]   = mbeta;
   NR_out["ibeta"]  = ibeta;
@@ -563,10 +444,9 @@ List NR_step_covIT_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, do
   NR_out["mSbeta"] = mSbeta;
   NR_out["lk"] = lk;
   NR_out["lk0"] = lk0;
-  
+
   return NR_out;
 }
-
 
 
 //[[Rcpp::export]]
@@ -588,6 +468,7 @@ List NR_step_covIT_wei(arma::mat mX, arma::mat mbeta, arma::mat mU, arma::vec vW
   arma::mat sbeta(K-1,P);
   arma::vec foosbeta(P);
   arma::vec NRstep(P);
+  arma::mat mNRstep = zeros(K-1,P);
   double foostep;
   double eps=1e100;
   double lk0;
@@ -602,12 +483,15 @@ List NR_step_covIT_wei(arma::mat mX, arma::mat mbeta, arma::mat mU, arma::vec vW
     w_i.row(n) = w_i.row(n)/accu(w_i.row(n));
     ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
   }
-  lk0 = accu(mU%log(w_i));
   arma::mat mWei = repmat(vWei,1,P);
+  arma::mat mWeiK = repmat(vWei,1,K);
+  lk0 = accu(mWeiK%mU%log(w_i));
+  lk = lk0;
   while(eps > tol && it < maxIt){
     for(k = 1; k < K; k++){
       sbeta.row(k-1) = (mU.col(k) - w_i.col(k)).t() *(mWei % X);
     }
+    mNRstep.zeros();
     if(K > 2){
       arma::vec ww(N);
       for(k=1; k < K; k++){
@@ -626,14 +510,13 @@ List NR_step_covIT_wei(arma::mat mX, arma::mat mbeta, arma::mat mU, arma::vec vW
         if(foostep > 0.5){
           NRstep = NRstep/foostep*0.5;
         }
-        mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
+        mNRstep.row(k-1) = NRstep.t();
       }
     }
     if(K==2){
-      double ww;
-      ww = accu(w.col(1));
       for(k=1; k < K; k++){
-        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%mWei*ww);
+        // For K=2, p(1-p) is already contained in ta.col(k).
+        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%mWei);
         NRstep = solve(ibeta.slice(k-1),sbeta.row(k-1).t());
         for(p = 0; p < P; p++){
           foosbeta(p) = abs3(NRstep(p));
@@ -642,174 +525,84 @@ List NR_step_covIT_wei(arma::mat mX, arma::mat mbeta, arma::mat mU, arma::vec vW
         if(foostep > 0.5){
           NRstep = NRstep/foostep*0.5;
         }
-        mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
+        mNRstep.row(k-1) = NRstep.t();
       }
     }
-    w.fill(1.0);
-    w_i.fill(1.0);
-    ta.fill(1.0);
-    for(n = 0; n < N; n++){
-      for(k = 1; k < K; k++){
-        w(n,k) = exp(accu(X.row(n) % mbeta.row(k-1)));
-        w_i(n,k) = w(n,k);
-        ta(n,k) = w(n,k);
-      }
-      w_i.row(n) = w_i.row(n)/accu(w_i.row(n));
-      ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
-    }
-    
-    lk = accu(mU%log(w_i));
-    if(it > 3){
-      eps = abs3(lk -lk0);
-    }
-    it = it + 1;
-    lk0 = lk;
-  }
-  
-  arma::mat mSbeta(N,(K-1)*P);
-  int iter = 0;
-  for(k = 1; k < K; k++){
-    for(n = 0; n < N; n++){
-      mSbeta.row(n).subvec(iter,iter + P - 1) = (mU(n,k) - w_i(n,k)) * (vWei(n) * X.row(n));
-    }
-    iter = iter + P;
-  }
-  iter = 0;
-  
-  List NR_out;
-  NR_out["beta"] = mbeta;
-  NR_out["ibeta"] = ibeta;
-  NR_out["sbeta"] = sbeta;
-  NR_out["mSbeta"] = mSbeta;
-  NR_out["w_i"] = w_i;
-  NR_out["lk"] = lk;
-  NR_out["lk0"] = lk0;
-  NR_out["niter"] = it;
-  
-  return NR_out;
-}
 
+    // Backtracking line search on the WEIGHTED multinomial log-likelihood.
+    // The same weights used in the score/Hessian are used in the objective.
+    double NR_LS = 1.0;
+    bool accepted = false;
+    int LSiter = 0;
+    const int LSmaxit = 60;
+    arma::mat mbeta_foo = mbeta;
+    arma::mat w_foo = w;
+    arma::mat w_i_foo = w_i;
+    double lkfoo = lk0;
 
-//[[Rcpp::export]]
-List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, arma::vec vWei, double tol=1e-06, int maxIt = 100){
-  // X should contain a column of ones to include the intercept term
-  // mbeta is K-1 x P
-  // N is the sample size
-  // K is the number of classes
-  // P is the number of covariates (including the intercept)
-  int N = mX.n_rows;
-  int K = mU.n_cols;
-  int P = mX.n_cols;
-  int j,k,n,p;
-  arma::mat X = mX;
-  arma::mat w = ones(N,K);
-  arma::mat w_i = w;
-  arma::mat w_i_foo = w_i;
-  arma::mat w_i_foonum = w_i;
-  arma::mat ta = w;
-  arma::cube ibeta(P,P,K-1);
-  arma::mat sbeta(K-1,P);
-  arma::mat mbeta_foo = mbeta;
-  arma::vec foosbeta(P);
-  arma::vec NRstep(P);
-  double foostep;
-  double NR_LS = 1.0;
-  double control = 0.0;
-  double eps=1e100;
-  double lk0;
-  double lk;
-  double dLKfoo;
-  int it=0;
-  int  fooiter = 0;
-  for(n = 0; n < N; n++){
-    for(k = 1; k < K; k++){
-      w(n,k) = exp(accu(X.row(n) % mbeta.row(k-1)));
-      w_i(n,k) = w(n,k);
-      ta(n,k) = w(n,k);
-    }
-    w_i.row(n) = w_i.row(n)/accu(w_i.row(n));
-    ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
-  }
-  lk0 = accu(mU%log(w_i));
-  arma::mat mWei = repmat(vWei,1,P);
-  while(eps > tol && it < maxIt){
-    for(k = 1; k < K; k++){
-      sbeta.row(k-1) = (mU.col(k) - w_i.col(k)).t() *(mWei % X);
-    }
-    if(K > 2){
-      arma::vec ww(N);
-      for(k=1; k < K; k++){
-        ww.fill(0.0);
-        for(j = 0; j < K; j++){
-          if(k!=j){
-            ww = ww + w.col(j);
-          }
-        }
-        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%repmat(ww,1,P)%mWei);
-        NRstep = solve(ibeta.slice(k-1),sbeta.row(k-1).t());
-        for(p = 0; p < P; p++){
-          foosbeta(p) = abs3(NRstep(p));
-        }
-        foostep = max(foosbeta);
-        if(foostep > 0.5){
-          NRstep = NRstep/foostep*0.5;
-        }
-        // mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
-      }
-    }
-    if(K==2){
-      double ww;
-      ww = accu(w.col(1));
-      for(k=1; k < K; k++){
-        ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%mWei*ww);
-        NRstep = solve(ibeta.slice(k-1),sbeta.row(k-1).t());
-        for(p = 0; p < P; p++){
-          foosbeta(p) = abs3(NRstep(p));
-        }
-        foostep = max(foosbeta);
-        if(foostep > 0.5){
-          NRstep = NRstep/foostep*0.5;
-        }
-        // mbeta.row(k-1) = mbeta.row(k-1) + NRstep.t();
-      }
-    }
-    // 
-    NR_LS = 1.0;
-    control = 0.0;
-    fooiter = 0;
-    while(control == 0.0 && fooiter < maxIt){
-      w_i_foo.fill(1.0);
-      for(k=1; k < K; k++){
-        mbeta_foo.row(k-1) = mbeta.row(k-1) + NR_LS*NRstep.t();
-      }
-      w_i_foo.cols(1,K-1) = exp(X*mbeta_foo.t());
-      w_i_foonum = w_i_foo;
+    while(!accepted && LSiter < LSmaxit){
+      mbeta_foo = mbeta + NR_LS*mNRstep;
+      w_foo.ones();
+      w_i_foo.ones();
       for(n = 0; n < N; n++){
+        for(k = 1; k < K; k++){
+          w_foo(n,k) = exp(accu(X.row(n) % mbeta_foo.row(k-1)));
+          w_i_foo(n,k) = w_foo(n,k);
+        }
         w_i_foo.row(n) = w_i_foo.row(n)/accu(w_i_foo.row(n));
       }
-      dLKfoo = accu(mU%log(w_i_foo));
-      if((dLKfoo -lk0) < 0){
-        NR_LS = NR_LS*dC;
-        fooiter +=1;
+      lkfoo = accu(mWeiK%mU%log(w_i_foo));
+      if(lkfoo >= lk0){
+        accepted = true;
       }else{
-        control = 1.0;
-        mbeta = mbeta_foo;
+        NR_LS = NR_LS*0.5;
+        LSiter +=1;
       }
     }
-    w   = w_i_foonum;
-    w_i = w_i_foo;
-    // 
-    lk = dLKfoo;
-    // 
-    for(n = 0; n < N; n++){
-      ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
+
+    if(accepted){
+      mbeta = mbeta_foo;
+      w = w_foo;
+      w_i = w_i_foo;
+      ta.ones();
+      for(n = 0; n < N; n++){
+        ta.row(n) = w.row(n)/pow(accu(w.row(n)),2.0);
+      }
+      lk = lkfoo;
+      if(it > 3){
+        eps = abs3(lk -lk0);
+      }
+      lk0 = lk;
+    }else{
+      // No admissible increase was found: retain the current iterate.
+      lk = lk0;
+      eps = 0.0;
     }
-    // 
-    eps = abs3(lk -lk0);
     it = it + 1;
-    lk0 = lk;
   }
-  
+
+  // Recompute score and information blocks at the final accepted iterate.
+  for(k = 1; k < K; k++){
+    sbeta.row(k-1) = (mU.col(k) - w_i.col(k)).t() *(mWei % X);
+  }
+  if(K > 2){
+    arma::vec ww(N);
+    for(k=1; k < K; k++){
+      ww.fill(0.0);
+      for(j = 0; j < K; j++){
+        if(k!=j){
+          ww = ww + w.col(j);
+        }
+      }
+      ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%repmat(ww,1,P)%mWei);
+    }
+  }
+  if(K==2){
+    for(k=1; k < K; k++){
+      ibeta.slice(k-1) = X.t() * (repmat(ta.col(k),1,P)%X%mWei);
+    }
+  }
+
   arma::mat mSbeta(N,(K-1)*P);
   int iter = 0;
   for(k = 1; k < K; k++){
@@ -819,7 +612,7 @@ List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC
     iter = iter + P;
   }
   iter = 0;
-  
+
   List NR_out;
   NR_out["beta"] = mbeta;
   NR_out["ibeta"] = ibeta;
@@ -829,13 +622,9 @@ List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC
   NR_out["lk"] = lk;
   NR_out["lk0"] = lk0;
   NR_out["niter"] = it;
-  
+
   return NR_out;
 }
-
-
-
-
 
 
 // [[Rcpp::export]]

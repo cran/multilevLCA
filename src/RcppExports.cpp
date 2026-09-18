@@ -272,22 +272,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// NR_step_covIT_LS
-List NR_step_covIT_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, double tol, int maxIt);
-RcppExport SEXP _multilevLCA_NR_step_covIT_LS(SEXP mXSEXP, SEXP mbetaSEXP, SEXP mUSEXP, SEXP dCSEXP, SEXP tolSEXP, SEXP maxItSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::mat >::type mX(mXSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type mbeta(mbetaSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type mU(mUSEXP);
-    Rcpp::traits::input_parameter< double >::type dC(dCSEXP);
-    Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
-    Rcpp::traits::input_parameter< int >::type maxIt(maxItSEXP);
-    rcpp_result_gen = Rcpp::wrap(NR_step_covIT_LS(mX, mbeta, mU, dC, tol, maxIt));
-    return rcpp_result_gen;
-END_RCPP
-}
 // NR_step_covIT_wei
 List NR_step_covIT_wei(arma::mat mX, arma::mat mbeta, arma::mat mU, arma::vec vWei, double tol, int maxIt);
 RcppExport SEXP _multilevLCA_NR_step_covIT_wei(SEXP mXSEXP, SEXP mbetaSEXP, SEXP mUSEXP, SEXP vWeiSEXP, SEXP tolSEXP, SEXP maxItSEXP) {
@@ -301,23 +285,6 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     Rcpp::traits::input_parameter< int >::type maxIt(maxItSEXP);
     rcpp_result_gen = Rcpp::wrap(NR_step_covIT_wei(mX, mbeta, mU, vWei, tol, maxIt));
-    return rcpp_result_gen;
-END_RCPP
-}
-// NR_step_covIT_wei_LS
-List NR_step_covIT_wei_LS(arma::mat mX, arma::mat mbeta, arma::mat mU, double dC, arma::vec vWei, double tol, int maxIt);
-RcppExport SEXP _multilevLCA_NR_step_covIT_wei_LS(SEXP mXSEXP, SEXP mbetaSEXP, SEXP mUSEXP, SEXP dCSEXP, SEXP vWeiSEXP, SEXP tolSEXP, SEXP maxItSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::mat >::type mX(mXSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type mbeta(mbetaSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type mU(mUSEXP);
-    Rcpp::traits::input_parameter< double >::type dC(dCSEXP);
-    Rcpp::traits::input_parameter< arma::vec >::type vWei(vWeiSEXP);
-    Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
-    Rcpp::traits::input_parameter< int >::type maxIt(maxItSEXP);
-    rcpp_result_gen = Rcpp::wrap(NR_step_covIT_wei_LS(mX, mbeta, mU, dC, vWei, tol, maxIt));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -772,9 +739,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_multilevLCA_logisticReg", (DL_FUNC) &_multilevLCA_logisticReg, 6},
     {"_multilevLCA_NR_step_cov", (DL_FUNC) &_multilevLCA_NR_step_cov, 3},
     {"_multilevLCA_NR_step_covIT", (DL_FUNC) &_multilevLCA_NR_step_covIT, 5},
-    {"_multilevLCA_NR_step_covIT_LS", (DL_FUNC) &_multilevLCA_NR_step_covIT_LS, 6},
     {"_multilevLCA_NR_step_covIT_wei", (DL_FUNC) &_multilevLCA_NR_step_covIT_wei, 6},
-    {"_multilevLCA_NR_step_covIT_wei_LS", (DL_FUNC) &_multilevLCA_NR_step_covIT_wei_LS, 7},
     {"_multilevLCA_vecTomatClass", (DL_FUNC) &_multilevLCA_vecTomatClass, 1},
     {"_multilevLCA_AvgMarginalEff", (DL_FUNC) &_multilevLCA_AvgMarginalEff, 3},
     {"_multilevLCA_grad_MLTLCA", (DL_FUNC) &_multilevLCA_grad_MLTLCA, 6},

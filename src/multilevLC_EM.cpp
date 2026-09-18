@@ -50,15 +50,23 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
     }
   }
   // 
-  int iNparfoo = 1+(iM-1)+(iP-1);
+  // Fixed-slope parameterization:
+  // row 0        = common/reference intercept (G1)
+  // rows 1:M-1   = intercept deviations G2,...,GM relative to G1
+  // rows M:...   = common covariate slopes
+  int iNparfoo = iM + iP - 1;
   arma::mat mGamma_fixslope = zeros(iNparfoo,iT-1);
-  mGamma_fixslope.row(0).fill(0.0);
   for(t = 0; t < (iT-1); t++){
+    const double gamma0 = cGamma_start(t,0,0);
+    // common/reference intercept
+    mGamma_fixslope(0,t) = gamma0;
+    // group-specific intercept deviations relative to G1
     for(m = 1; m < iM; m++){
-      mGamma_fixslope(m,t) = cGamma_start(t,0,m);
+      mGamma_fixslope(m,t) = cGamma_start(t,0,m) - gamma0;
     }
-    for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
+    // slopes constrained to be common across higher-level classes
+    if(iP > 1){
+      mGamma_fixslope.col(t).subvec(iM, iNparfoo-1) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   // 
@@ -229,33 +237,42 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
     mPXag = exp(mlogPXag);
     // M step 
     //
+    // Refresh expanded pseudo-responses and higher-level posterior weights
+    // after the E-step.
+    for(m = 0; m < iM; m++){
+      matPX.rows(m*iN, (m+1)*iN - 1) = cPX.slice(m);
+    }
+    vPW_N = vectorise(mPW_N);
     NR_step = NR_step_covIT_wei(mZrep, mGamma_fixslope.t(), matPX, vPW_N, NRtol, NRmaxit);
     arma::mat mGamma_foo = NR_step["beta"];
+    arma::mat mPi_fixed_foo = NR_step["w_i"];
     arma::mat mGammaScore_foo = NR_step["mSbeta"];
     arma::cube cGammaInfo_foo = NR_step["ibeta"];
     mGamma_Score = mGammaScore_foo;
     // cGamma is iT-1 x iP x iM 
     mGamma_fixslope = mGamma_foo.t();
-    cGamma_Next.fill(0.0);
-    cGamma_Next.slice(0).col(0) = mGamma_fixslope.row(0).t();
-    for(m = 1; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next(t,0,m) += mGamma_fixslope(m,t);
+    cGamma_Next.zeros();
+    for(t = 0; t < (iT-1); t++){
+      // G1 intercept = common/reference intercept
+      cGamma_Next(t,0,0) = mGamma_fixslope(0,t);
+      // G2,...,GM intercepts = common/reference intercept + group deviation
+      for(m = 1; m < iM; m++){
+        cGamma_Next(t,0,m) = mGamma_fixslope(0,t) + mGamma_fixslope(m,t);
       }
-    }
-    for(m = 0; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+      // common slopes across all higher-level classes
+      if(iP > 1){
+        for(m = 0; m < iM; m++){
+          cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+        }
       }
     }
     
+    // Use exactly the probabilities corresponding to the accepted
+    // fixed-slope multinomial NR iterate.  Reconstructing them manually
+    // would require the reference-class numerator to be reset to 1;
+    // retaining its old normalized probability changes the fitted model.
     for(m = 0; m < iM; m++){
-      for(n = 0; n< iN; n++){
-        for(t = 1; t < iT; t++){
-          cPi_foo(n,t,m) = exp(accu(mZ.row(n)%cGamma_Next.slice(m).row(t-1)));
-        }
-        cPi_foo.slice(m).row(n) = cPi_foo.slice(m).row(n)/accu(cPi_foo.slice(m).row(n));
-      }
+      cPi_foo.slice(m) = mPi_fixed_foo.rows(m*iN, (m+1)*iN - 1);
     }
     // 
     if(fixedpars != 2){
@@ -317,13 +334,18 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
   arma::ivec ivItemcat_red = ivItemcat -1;
   int nfreepar_res = sum(ivItemcat_red);
   
+  // Number of free structural parameters under fixed slopes
+  const int nfreepar_gamma = (iT - 1) * (iM + iP - 1);
+  const int nfreepar_delta = (iM - 1) * iPh;
+  const int nfreepar_model = iT * nfreepar_res + nfreepar_gamma + nfreepar_delta;
+  
   double BIClow;
   double BIChigh;
-  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*1.0*nfreepar_model;
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*1.0*nfreepar_model;
   
   double AIC;
-  AIC = -2.0*LLKSeries(iter-1) + 2.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  AIC = -2.0*LLKSeries(iter-1) + 2.0*nfreepar_model;
   
   // computing log-linear parameters
   arma::vec vPosthigh(iM);
@@ -446,8 +468,8 @@ List MLTLCA_covWfixedlowhigh_poly_includeall(arma::mat mY, arma::mat mDesign, ar
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
-  // int parsfree        = (iT - 1)*iP*iM + (iM - 1)*iPh;
-  int parsfree        = 1 + (iM - 1) + (iT - 1)*iP + (iM - 1)*iPh;
+  // Free structural parameters: higher-level alpha block + fixed-slope gamma block
+  int parsfree        = (iM - 1)*iPh + (iT - 1)*(iM + iP - 1);
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars,uncondLatpars,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
@@ -556,15 +578,23 @@ List MLTLCA_covWfixedlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arm
     }
   }
   // 
-  int iNparfoo = 1+(iM-1)+(iP-1);
+  // Fixed-slope parameterization:
+  // row 0        = common/reference intercept (G1)
+  // rows 1:M-1   = intercept deviations G2,...,GM relative to G1
+  // rows M:...   = common covariate slopes
+  int iNparfoo = iM + iP - 1;
   arma::mat mGamma_fixslope = zeros(iNparfoo,iT-1);
-  mGamma_fixslope.row(0).fill(0.0);
   for(t = 0; t < (iT-1); t++){
+    const double gamma0 = cGamma_start(t,0,0);
+    // common/reference intercept
+    mGamma_fixslope(0,t) = gamma0;
+    // group-specific intercept deviations relative to G1
     for(m = 1; m < iM; m++){
-      mGamma_fixslope(m,t) = cGamma_start(t,0,m);
+      mGamma_fixslope(m,t) = cGamma_start(t,0,m) - gamma0;
     }
-    for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
+    // slopes constrained to be common across higher-level classes
+    if(iP > 1){
+      mGamma_fixslope.col(t).subvec(iM, iNparfoo-1) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   // 
@@ -727,34 +757,43 @@ List MLTLCA_covWfixedlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arm
     mPXag = exp(mlogPXag);
     // M step 
     //
+    // Refresh expanded pseudo-responses and higher-level posterior weights
+    // after the E-step.
+    for(m = 0; m < iM; m++){
+      matPX.rows(m*iN, (m+1)*iN - 1) = cPX.slice(m);
+    }
+    vPW_N = vectorise(mPW_N);
     NR_step = NR_step_covIT_wei(mZrep, mGamma_fixslope.t(), matPX, vPW_N, NRtol, NRmaxit);
     arma::mat mGamma_foo = NR_step["beta"];
+    arma::mat mPi_fixed_foo = NR_step["w_i"];
     arma::mat mGammaScore_foo = NR_step["mSbeta"];
     arma::cube cGammaInfo_foo = NR_step["ibeta"];
     
     mGamma_Score = mGammaScore_foo;
     // cGamma is iT-1 x iP x iM 
     mGamma_fixslope = mGamma_foo.t();
-    cGamma_Next.fill(0.0);
-    cGamma_Next.slice(0).col(0) = mGamma_fixslope.row(0).t();
-    for(m = 1; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next(t,0,m) += mGamma_fixslope(m,t);
+    cGamma_Next.zeros();
+    for(t = 0; t < (iT-1); t++){
+      // G1 intercept = common/reference intercept
+      cGamma_Next(t,0,0) = mGamma_fixslope(0,t);
+      // G2,...,GM intercepts = common/reference intercept + group deviation
+      for(m = 1; m < iM; m++){
+        cGamma_Next(t,0,m) = mGamma_fixslope(0,t) + mGamma_fixslope(m,t);
       }
-    }
-    for(m = 0; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+      // common slopes across all higher-level classes
+      if(iP > 1){
+        for(m = 0; m < iM; m++){
+          cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+        }
       }
     }
     
+    // Use exactly the probabilities corresponding to the accepted
+    // fixed-slope multinomial NR iterate.  Reconstructing them manually
+    // would require the reference-class numerator to be reset to 1;
+    // retaining its old normalized probability changes the fitted model.
     for(m = 0; m < iM; m++){
-      for(n = 0; n< iN; n++){
-        for(t = 1; t < iT; t++){
-          cPi_foo(n,t,m) = exp(accu(mZ.row(n)%cGamma_Next.slice(m).row(t-1)));
-        }
-        cPi_foo.slice(m).row(n) = cPi_foo.slice(m).row(n)/accu(cPi_foo.slice(m).row(n));
-      }
+      cPi_foo.slice(m) = mPi_fixed_foo.rows(m*iN, (m+1)*iN - 1);
     }
     // 
     if(fixedpars != 2){
@@ -816,13 +855,18 @@ List MLTLCA_covWfixedlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arm
   arma::ivec ivItemcat_red = ivItemcat -1;
   int nfreepar_res = sum(ivItemcat_red);
   
+  // Number of free structural parameters under fixed slopes
+  const int nfreepar_gamma = (iT - 1) * (iM + iP - 1);
+  const int nfreepar_delta = (iM - 1) * iPh;
+  const int nfreepar_model = iT * nfreepar_res + nfreepar_gamma + nfreepar_delta;
+  
   double BIClow;
   double BIChigh;
-  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
-  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*1.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  BIClow  = -2.0*LLKSeries(iter-1) + log(iN)*1.0*nfreepar_model;
+  BIChigh = -2.0*LLKSeries(iter-1) + log(iJ)*1.0*nfreepar_model;
   
   double AIC;
-  AIC = -2.0*LLKSeries(iter-1) + 2.0*(iT*nfreepar_res + (iT - 1.0)*iP*iM + (iM - 1.0)*iPh);
+  AIC = -2.0*LLKSeries(iter-1) + 2.0*nfreepar_model;
   
   // computing log-linear parameters
   arma::vec vPosthigh(iM);
@@ -946,8 +990,8 @@ List MLTLCA_covWfixedlowhigh_poly(arma::mat mY, arma::mat mZ, arma::mat mZh, arm
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
-  // int parsfree        = (iT - 1)*iP*iM + (iM - 1)*iPh;
-  int parsfree        = 1 + (iM - 1) + (iT - 1)*iP + (iM - 1)*iPh;
+  // Free structural parameters: higher-level alpha block + fixed-slope gamma block
+  int parsfree        = (iM - 1)*iPh + (iT - 1)*(iM + iP - 1);
   arma::mat mSigma11  = mStep1Var.submat(uncondLatpars,uncondLatpars,uncondLatpars + nfreepar_res-1,uncondLatpars + nfreepar_res-1);
   arma::mat mV2       = Varmat.submat(0,0,parsfree-1,parsfree-1);
   arma::mat mJmat     = Infomat.submat(0,0,parsfree-1,parsfree-1);
@@ -1052,15 +1096,20 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
     }
   }
   // 
-  int iNparfoo = 1+(iM-1)+(iP-1);
+  // Fixed-slope parameterization:
+  // row 0        = common/reference intercept (G1)
+  // rows 1:M-1   = intercept deviations G2,...,GM relative to G1
+  // rows M:...   = common covariate slopes
+  int iNparfoo = iM + iP - 1;
   arma::mat mGamma_fixslope = zeros(iNparfoo,iT-1);
-  mGamma_fixslope.row(0).fill(0.0);
   for(t = 0; t < (iT-1); t++){
+    const double gamma0 = cGamma_start(t,0,0);
+    mGamma_fixslope(0,t) = gamma0;
     for(m = 1; m < iM; m++){
-      mGamma_fixslope(m,t) = cGamma_start(t,0,m);
+      mGamma_fixslope(m,t) = cGamma_start(t,0,m) - gamma0;
     }
-    for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
+    if(iP > 1){
+      mGamma_fixslope.col(t).subvec(iM, iNparfoo-1) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   //
@@ -1170,7 +1219,6 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
     //
     // E step
     // (working with log-probabilities to avoid numerical over/underflow)
-    ifoopar = 0;
     for(n = 0; n < iN; n++){
       for(m = 0; m < iM; m++){
         for(t = 0; t < iT; t++){
@@ -1181,8 +1229,6 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
           clogPX(n,t,m) = clogPX(n,t,m) - mSumPX(n,m);
           cPX(n,t,m) = exp(clogPX(n,t,m));
         }
-        matPX.rows(ifoopar,ifoopar + iN-1) = cPX.slice(m);
-        ifoopar = iN;
       }
     }
     foo = 0.0;
@@ -1213,37 +1259,45 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
     cPMX  = exp(clogPMX);
     mPXag = exp(mlogPXag);
     // 
+    // Refresh expanded pseudo-responses and higher-level posterior weights
+    // after the E-step.
+    for(m = 0; m < iM; m++){
+      matPX.rows(m*iN, (m+1)*iN - 1) = cPX.slice(m);
+    }
     vPW_N = vectorise(mPW_N);
     // 
     // M step 
     //
     NR_step = NR_step_covIT_wei(mZrep, mGamma_fixslope.t(), matPX, vPW_N, NRtol, NRmaxit);
     arma::mat mGamma_foo = NR_step["beta"];
+    arma::mat mPi_fixed_foo = NR_step["w_i"];
     arma::mat mGammaScore_foo = NR_step["mSbeta"];
     arma::cube cGammaInfo_foo = NR_step["ibeta"];
     mGamma_Score = mGammaScore_foo;
     // cGamma is iT-1 x iP x iM 
     mGamma_fixslope = mGamma_foo.t();
-    cGamma_Next.fill(0.0);
-    cGamma_Next.slice(0).col(0) = mGamma_fixslope.row(0).t();
-    for(m = 1; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next(t,0,m) += mGamma_fixslope(m,t);
+    cGamma_Next.zeros();
+    for(t = 0; t < (iT-1); t++){
+      // G1 intercept = common/reference intercept
+      cGamma_Next(t,0,0) = mGamma_fixslope(0,t);
+      // G2,...,GM intercepts = common/reference intercept + group deviation
+      for(m = 1; m < iM; m++){
+        cGamma_Next(t,0,m) = mGamma_fixslope(0,t) + mGamma_fixslope(m,t);
       }
-    }
-    for(m = 0; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+      // slopes are common across higher-level classes
+      if(iP > 1){
+        for(m = 0; m < iM; m++){
+          cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+        }
       }
     }
     
+    // Use exactly the probabilities corresponding to the accepted
+    // fixed-slope multinomial NR iterate.  Reconstructing them manually
+    // would require the reference-class numerator to be reset to 1;
+    // retaining its old normalized probability changes the fitted model.
     for(m = 0; m < iM; m++){
-      for(n = 0; n< iN; n++){
-        for(t = 1; t < iT; t++){
-          cPi_foo(n,t,m) = exp(accu(mZ.row(n)%cGamma_Next.slice(m).row(t-1)));
-        }
-        cPi_foo.slice(m).row(n) = cPi_foo.slice(m).row(n)/accu(cPi_foo.slice(m).row(n));
-      }
+      cPi_foo.slice(m) = mPi_fixed_foo.rows(m*iN, (m+1)*iN - 1);
     }
     
     if(fixedpars != 2){
@@ -1426,8 +1480,9 @@ List MLTLCA_covWfixed_poly_includeall(arma::mat mY, arma::mat mDesign, arma::mat
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
-  // int parsfree        = (iT - 1)*iP*iM + (iM - 1);
-  int parsfree        = 1 + (iM - 1) + (iT - 1)*iP + (iM - 1);
+  // Free structural parameters: (M-1) high-level proportions +
+  // (T-1)*(M+P-1) lower-level fixed-slope parameters.
+  int parsfree        = (iM - 1) + (iT - 1)*(iM + iP - 1);
   if(nsteps == 3){
     nfreepar_res = 0;
   }
@@ -1534,15 +1589,20 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
     }
   }
   // 
-  int iNparfoo = 1+(iM-1)+(iP-1);
+  // Fixed-slope parameterization:
+  // row 0        = common/reference intercept (G1)
+  // rows 1:M-1   = intercept deviations G2,...,GM relative to G1
+  // rows M:...   = common covariate slopes
+  int iNparfoo = iM + iP - 1;
   arma::mat mGamma_fixslope = zeros(iNparfoo,iT-1);
-  mGamma_fixslope.row(0).fill(0.0);
   for(t = 0; t < (iT-1); t++){
+    const double gamma0 = cGamma_start(t,0,0);
+    mGamma_fixslope(0,t) = gamma0;
     for(m = 1; m < iM; m++){
-      mGamma_fixslope(m,t) = cGamma_start(t,0,m);
+      mGamma_fixslope(m,t) = cGamma_start(t,0,m) - gamma0;
     }
-    for(p = 0; p < (iP-1); p++){
-      mGamma_fixslope.col(t).subvec(iM, iM + iP-2) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
+    if(iP > 1){
+      mGamma_fixslope.col(t).subvec(iM, iNparfoo-1) = cGamma_start.slice(0).row(t).subvec(1,iP-1).t();
     }
   }
   //
@@ -1647,7 +1707,6 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
     //
     // E step
     // (working with log-probabilities to avoid numerical over/underflow)
-    ifoopar = 0;
     for(n = 0; n < iN; n++){
       for(m = 0; m < iM; m++){
         for(t = 0; t < iT; t++){
@@ -1658,8 +1717,6 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
           clogPX(n,t,m) = clogPX(n,t,m) - mSumPX(n,m);
           cPX(n,t,m) = exp(clogPX(n,t,m));
         }
-        matPX.rows(ifoopar,ifoopar + iN-1) = cPX.slice(m);
-        ifoopar = iN;
       }
     }
     foo = 0.0;
@@ -1690,38 +1747,46 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
     cPMX  = exp(clogPMX);
     mPXag = exp(mlogPXag);
     // 
+    // Refresh expanded pseudo-responses and higher-level posterior weights
+    // after the E-step.
+    for(m = 0; m < iM; m++){
+      matPX.rows(m*iN, (m+1)*iN - 1) = cPX.slice(m);
+    }
     vPW_N = vectorise(mPW_N);
     // 
     // M step 
     //
     NR_step = NR_step_covIT_wei(mZrep, mGamma_fixslope.t(), matPX, vPW_N, NRtol, NRmaxit);
     arma::mat mGamma_foo = NR_step["beta"];
+    arma::mat mPi_fixed_foo = NR_step["w_i"];
     arma::mat mGammaScore_foo = NR_step["mSbeta"];
     arma::cube cGammaInfo_foo = NR_step["ibeta"];
     
     mGamma_Score = mGammaScore_foo;
     // cGamma is iT-1 x iP x iM 
     mGamma_fixslope = mGamma_foo.t();
-    cGamma_Next.fill(0.0);
-    cGamma_Next.slice(0).col(0) = mGamma_fixslope.row(0).t();
-    for(m = 1; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next(t,0,m) += mGamma_fixslope(m,t);
+    cGamma_Next.zeros();
+    for(t = 0; t < (iT-1); t++){
+      // G1 intercept = common/reference intercept
+      cGamma_Next(t,0,0) = mGamma_fixslope(0,t);
+      // G2,...,GM intercepts = common/reference intercept + group deviation
+      for(m = 1; m < iM; m++){
+        cGamma_Next(t,0,m) = mGamma_fixslope(0,t) + mGamma_fixslope(m,t);
       }
-    }
-    for(m = 0; m < iM; m++){
-      for(t = 0; t < (iT-1); t++){
-        cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+      // slopes are common across higher-level classes
+      if(iP > 1){
+        for(m = 0; m < iM; m++){
+          cGamma_Next.slice(m).row(t).subvec(1,iP-1) = mGamma_fixslope.col(t).subvec(iM,iNparfoo-1).t();
+        }
       }
     }
     
+    // Use exactly the probabilities corresponding to the accepted
+    // fixed-slope multinomial NR iterate.  Reconstructing them manually
+    // would require the reference-class numerator to be reset to 1;
+    // retaining its old normalized probability changes the fitted model.
     for(m = 0; m < iM; m++){
-      for(n = 0; n< iN; n++){
-        for(t = 1; t < iT; t++){
-          cPi_foo(n,t,m) = exp(accu(mZ.row(n)%cGamma_Next.slice(m).row(t-1)));
-        }
-        cPi_foo.slice(m).row(n) = cPi_foo.slice(m).row(n)/accu(cPi_foo.slice(m).row(n));
-      }
+      cPi_foo.slice(m) = mPi_fixed_foo.rows(m*iN, (m+1)*iN - 1);
     }
     
     if(fixedpars != 2){
@@ -1904,8 +1969,9 @@ List MLTLCA_covWfixed_poly(arma::mat mY, arma::mat mZ, arma::vec vNj, arma::vec 
   arma::vec SEs_unc =  sqrt(Varmat.diag());
   // asymptotic SEs correction
   int uncondLatpars   = (iM-1) + (iT-1)*iM;
-  // int parsfree        = (iT - 1)*iP*iM + (iM - 1);
-  int parsfree        = 1 + (iM - 1) + (iT - 1)*iP + (iM - 1);
+  // Free structural parameters: (M-1) high-level proportions +
+  // (T-1)*(M+P-1) lower-level fixed-slope parameters.
+  int parsfree        = (iM - 1) + (iT - 1)*(iM + iP - 1);
   if(nsteps == 3){
     nfreepar_res = 0;
   }

@@ -65,16 +65,8 @@ NR_step_covIT <- function(mX, mbeta, mU, tol = 1e-06, maxIt = 100L) {
     .Call('_multilevLCA_NR_step_covIT', PACKAGE = 'multilevLCA', mX, mbeta, mU, tol, maxIt)
 }
 
-NR_step_covIT_LS <- function(mX, mbeta, mU, dC, tol = 1e-06, maxIt = 100L) {
-    .Call('_multilevLCA_NR_step_covIT_LS', PACKAGE = 'multilevLCA', mX, mbeta, mU, dC, tol, maxIt)
-}
-
 NR_step_covIT_wei <- function(mX, mbeta, mU, vWei, tol = 1e-06, maxIt = 100L) {
     .Call('_multilevLCA_NR_step_covIT_wei', PACKAGE = 'multilevLCA', mX, mbeta, mU, vWei, tol, maxIt)
-}
-
-NR_step_covIT_wei_LS <- function(mX, mbeta, mU, dC, vWei, tol = 1e-06, maxIt = 100L) {
-    .Call('_multilevLCA_NR_step_covIT_wei_LS', PACKAGE = 'multilevLCA', mX, mbeta, mU, dC, vWei, tol, maxIt)
 }
 
 vecTomatClass <- function(vClass) {
