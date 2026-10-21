@@ -1,9 +1,9 @@
-ce4a6c044a95988abf79fce89783d73c *DESCRIPTION
+1076bbb1546dca2ed370299d15eb4c01 *DESCRIPTION
 57f1cec722ac9bbb8823858ae912acaf *NAMESPACE
 f7c1865df4334c71bcdd3a53135cce7f *R/MLCAfunctions.R
 5d9419b305d8556cab54016357390329 *R/MLCAsimulate.R
 54361b9dd061173e46757708bfb02453 *R/RcppExports.R
-af1e4ae7c634cbe353eb7d631a8ff1d3 *build/partial.rdb
+1779e0de52a0138e5b091732edace223 *build/partial.rdb
 d5e5b22223f581bc93d4a780c0f56798 *data/dataIEA.rda
 878ce51371e367a5267c2847adf273af *data/dataTOY.rda
 339884912aa12235301357f918b6c01b *man/dataIEA.Rd
@@ -11,7 +11,7 @@ d5e5b22223f581bc93d4a780c0f56798 *data/dataIEA.rda
 7d154528b963ac52bd3f3e48120f0964 *man/multiLCA.Rd
 c664ca8ae4ae0afce9dc1170428e693d *man/multilevLCA-package.Rd
 791a3f85d3d98e1f62f43f6501a096e8 *man/plot.multiLCA.Rd
-2025251d4fc11c638be1df8f32a989d2 *src/LCAfit.cpp
+050573e6c48a95a0c9c074eafe2368e2 *src/LCAfit.cpp
 8d46d69896a1f1d31ed76035a0e49d67 *src/Makevars
 1f1c9459bfd04b8aadd22a2be152d203 *src/Makevars.win
 c01f9663440e3a85a9f25299448c2179 *src/RcppExports.cpp

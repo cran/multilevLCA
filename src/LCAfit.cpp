@@ -189,9 +189,10 @@ List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq
 
 
   // Computing the score
+  arma::vec vFreq_sqrt =     sqrt(conv_to<arma::vec>::from(ivFreq));
   arma::mat mPg_Score(iN,iK-1);
   for(k =1; k< iK; k++){
-    mPg_Score.col(k-1) = (mU.col(k) - pg(k))%ivFreq;
+    mPg_Score.col(k-1) = (mU.col(k) - pg(k))%vFreq_sqrt;
   }
   arma::mat mGamma_Score=zeros(iN,nfreepar_res*iK);
   iRoll = 0;
@@ -202,19 +203,19 @@ List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq
       if(v>0){
         if(ivItemcat(v)>2){
           mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) =
-            mDesign.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2)%repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2).t(),iN,1));
+            mDesign.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2)%repmat(mU.col(k)%vFreq_sqrt,1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2).t(),iN,1));
           iItemfoo += ivItemcat(v);
         }else{
-          mGamma_Score.col(iRoll) = mDesign.col(iItemfoo)%mU.col(k)%ivFreq%(mY.col(iItemfoo) - mPhi(iItemfoo,k));
+          mGamma_Score.col(iRoll) = mDesign.col(iItemfoo)%mU.col(k)%vFreq_sqrt%(mY.col(iItemfoo) - mPhi(iItemfoo,k));
           iItemfoo += ivItemcat(v)-1;
         }
       }else{
         if(ivItemcat(v)>2){
           mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) =
-            mDesign.cols(1,ivItemcat(v)-1)%repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+            mDesign.cols(1,ivItemcat(v)-1)%repmat(mU.col(k)%vFreq_sqrt,1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
           iItemfoo += ivItemcat(v);
         }else{
-          mGamma_Score.col(iRoll) = mDesign.col(0)%mU.col(k)%ivFreq%(mY.col(0) - mPhi(0,k));
+          mGamma_Score.col(iRoll) = mDesign.col(0)%mU.col(k)%vFreq_sqrt%(mY.col(0) - mPhi(0,k));
           iItemfoo += ivItemcat(v)-1;
         }
       }
@@ -224,8 +225,8 @@ List LCA_fast_poly_includeall(arma::mat mY, arma::mat mDesign, arma::ivec ivFreq
   iItemfoo = 0;
 
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
-  arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
+  arma::mat Infomat = mScore.t()*mScore/iNtot;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iNtot;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;
@@ -1020,8 +1021,9 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
 
   // Computing the score
   arma::mat mPg_Score(iN,iK-1);
+  arma::vec vFreq_sqrt =     sqrt(conv_to<arma::vec>::from(ivFreq)); 
   for(k =1; k< iK; k++){
-    mPg_Score.col(k-1) = (mU.col(k) - pg(k))%ivFreq;
+    mPg_Score.col(k-1) = (mU.col(k) - pg(k))%vFreq_sqrt;
   }
   arma::mat mGamma_Score=zeros(iN,nfreepar_res*iK);
   iRoll = 0;
@@ -1032,20 +1034,20 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
       if(v>0){
         if(ivItemcat(v)>2){
         mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) =
-          repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2).t(),iN,1));
+          repmat(mU.col(k)%vFreq_sqrt,1,ivItemcat(v)-1)%(mY.cols(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2) - repmat(mPhi.col(k).subvec(iItemfoo + 1,iItemfoo + 1+ ivItemcat(v)-2).t(),iN,1));
           iItemfoo += ivItemcat(v);
         }else{
-          mGamma_Score.col(iRoll) = mU.col(k)%ivFreq%(mY.col(iItemfoo) - mPhi(iItemfoo,k));
+          mGamma_Score.col(iRoll) = mU.col(k)%vFreq_sqrt%(mY.col(iItemfoo) - mPhi(iItemfoo,k));
           iItemfoo += ivItemcat(v)-1;
         }
 
       }else{
         if(ivItemcat(v)>2){
         mGamma_Score.cols(iRoll,iRoll + (ivItemcat(v)-2)) =
-        repmat(mU.col(k)%ivFreq,1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
+        repmat(mU.col(k)%vFreq_sqrt,1,ivItemcat(v)-1)%(mY.cols(1,ivItemcat(v)-1) - repmat(mPhi.col(k).subvec(1,ivItemcat(v)-1).t(),iN,1));
           iItemfoo += ivItemcat(v);
         }else{
-          mGamma_Score.col(iRoll) = mU.col(k)%ivFreq%(mY.col(0) - mPhi(0,k));
+          mGamma_Score.col(iRoll) = mU.col(k)%vFreq_sqrt%(mY.col(0) - mPhi(0,k));
           iItemfoo += ivItemcat(v)-1;
         }
       }
@@ -1055,8 +1057,8 @@ List LCA_fast_poly(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::
   iItemfoo = 0;
 
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
-  arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
+  arma::mat Infomat = mScore.t()*mScore/iNtot;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iNtot;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;
@@ -1633,17 +1635,17 @@ List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::vec r
   
   
   // Computing the score
-  
+  arma::vec vFreq_sqrt =     sqrt(conv_to<arma::vec>::from(ivFreq));
   arma::mat mPg_Score(iN,iK-1);
   for(k =1; k< iK; k++){
-    mPg_Score.col(k-1) = (mU.col(k) - pg(k))%ivFreq;
+    mPg_Score.col(k-1) = (mU.col(k) - pg(k))%vFreq_sqrt;
   }
   
   arma::mat mGamma_Score=zeros(iN,iH*iK);
   int iroll = 0;
   for(k = 0; k < iK; k++){
     for(h = 0; h < iH; h++){
-      mGamma_Score.col(iroll) = (mU.col(k)%(mY.col(h) - mPhi(h,k)))%ivFreq;
+      mGamma_Score.col(iroll) = (mU.col(k)%(mY.col(h) - mPhi(h,k)))%vFreq_sqrt;
       iroll += 1;
     }
   }
@@ -1651,8 +1653,8 @@ List LCA_fast(arma::mat mY, arma::ivec ivFreq, int iK, arma::mat mU, arma::vec r
   iroll=0;
   
   arma::mat mScore = join_rows(mPg_Score,mGamma_Score);
-  arma::mat Infomat = mScore.t()*mScore/iN;
-  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iN;
+  arma::mat Infomat = mScore.t()*mScore/iNtot;
+  arma::mat Varmat = psinv(Infomat,1000,2.220446e-16)/iNtot;
   arma::vec SEs =  sqrt(Varmat.diag());
   
   List EMout;
